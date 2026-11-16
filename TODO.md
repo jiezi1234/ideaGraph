@@ -1,0 +1,23 @@
+# TODO
+
+- [x] 将当前 JSON tool-call agent loop 迁移为自定义 LangGraph `ToolNode + tools_condition` 实现，并实测 `qwen3.6:35b` 的 Ollama 原生 tool calling 稳定性。
+- [ ] 上线/容器化时在 Docker 镜像中准备 Java 17+ 环境，确保 `opendataloader-pdf` 能正常运行。
+- [x] 强化学习在公交车调度方面的测试
+- [ ] 打分迭代效果 
+- [ ] 建立 Claim 体系：把文档中的结论、主张、局限性等抽成可落库、可回查的 Claim。
+- [ ] 增强证据溯源：把 entity / relation / claim 的证据字段真正落到图谱侧，必要时评估 LightRAG 作为底座。
+- [ ] 多跳查询接口：在图谱 schema 和证据层定下来后，再做多跳查询、路径扩展和子图返回。
+- [ ] 增强图谱检索排序：在相关性排序或图谱遍历中引入时间因素。
+- [x] 增加新的论文处理接口：允许指定某个论文对应的本地文件夹，根据其中的论文 PDF 获取摘要等基础信息，并复用现有流程进行实体抽取和图谱构建。
+- [x] 增强论文全文补全：OpenAlex 候选源下载/解析失败后切换，官方 `content_urls.pdf` 使用 API key 池，最后 fallback 到 arXiv，并复用已有 Markdown 解析产物。
+- [ ] 增强引用列表补全：缺失引用列表时通过模型从原文中抽取引用论文列表。
+- [ ] 规范图谱节点属性
+- [x] 保存query结果，以供后续评估
+- [ ] 加上BM25召回，或者接入搜索引擎，以提高关键词匹配能力
+- [x] 同实体合并（不过lightrag有，到时候切换过去也行）
+- [ ] 加入工具规划
+- [ ] 在 `chat-idea` 中增加基于 `query_keywords` 的确定性图谱节点查询：将关键词作为候选 `Entity.id` / alias 自动查询一跳上下文，并与现有 agent tool 调用结果合并，避免完全依赖模型自行决定是否调用 `get_node_neighborhood`。
+- [ ] 多智能体方案?
+- [x] 模型输出论文脉络
+- [ ] 更长程的工具调用; 2.评估agent独立调用工具；3.考虑添加更多的工具，比如计划工具，还有参考论文的工具
+- [ ] 使用jina重排序

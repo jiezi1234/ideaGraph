@@ -1,0 +1,36 @@
+[project]
+name = "ideagraph"
+version = "0.1.0"
+description = "IdeaGraph MVP"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "chromadb==1.5.9",
+    "graphistry>=0.56.1",
+    "httpx[socks]==0.28.1",
+    "langfuse==4.9.1",
+    "langgraph==1.2.6",
+    "neo4j==6.2.0",
+    "ollama==0.6.2",
+    "openai==2.43.0",
+    "opendataloader-pdf[hybrid]==2.4.7",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.14.2",
+    "torch==2.5.1",
+    "torchvision==0.20.1",
+    "transformers==5.9.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu121" }]
+torchvision = [{ index = "pytorch-cu121" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
