@@ -13,7 +13,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.config.settings import Settings
-from src.models.ollama_openai import OllamaOpenAIChatModel
+from src.models.openai_chat import OpenAIChatModel
 from src.workflows.ai_idea_bench_i2i import build_target_canonical_idea
 from src.workflows.ai_idea_bench_i2i import evaluate_idea_to_idea
 from src.workflows.ai_idea_bench_i2i import evaluate_idea_to_idea_official
@@ -176,7 +176,7 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     args = parse_args()
     settings = Settings()
-    model = OllamaOpenAIChatModel.from_settings(settings)
+    model = OpenAIChatModel.from_settings(settings, model_name=settings.llm_model_generation)
     run_evaluation(
         dataset_json=args.dataset_json,
         run_manifest=args.run_manifest,

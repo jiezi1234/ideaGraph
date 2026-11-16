@@ -25,8 +25,8 @@ def archive_chat_idea_result(
         "created_at": created_at,
         "config": {
             "neo4j_database": settings.neo4j_database,
-            "ollama_model": settings.ollama_model,
-            "ollama_embed_model": settings.ollama_embed_model,
+            "llm_model_generation": settings.llm_model_generation,
+            "embed_model": settings.embed_model,
             "agent_retrieval_top_k": settings.agent_retrieval_top_k,
         },
     }

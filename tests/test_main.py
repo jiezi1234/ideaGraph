@@ -252,8 +252,8 @@ def test_run_chat_idea_prints_structured_idea_output(monkeypatch, tmp_path, caps
         log_level = "INFO"
         log_file = "logs/test.log"
         neo4j_database = "testidea"
-        ollama_model = "qwen3.6:35b"
-        ollama_embed_model = "qwen3-embedding:4b"
+        llm_model_generation = "qwen3.6:35b"
+        embed_model = "qwen3-embedding:4b"
         agent_retrieval_top_k = 3
         chat_idea_archive_dir = str(tmp_path)
 
@@ -342,8 +342,8 @@ def test_run_chat_idea_unescapes_newlines(monkeypatch, tmp_path, capsys):
         log_level = "INFO"
         log_file = "logs/test.log"
         neo4j_database = "testidea"
-        ollama_model = "qwen3.6:35b"
-        ollama_embed_model = "qwen3-embedding:4b"
+        llm_model_generation = "qwen3.6:35b"
+        embed_model = "qwen3-embedding:4b"
         agent_retrieval_top_k = 3
         chat_idea_archive_dir = str(tmp_path)
 
@@ -401,8 +401,8 @@ def test_run_chat_idea_writes_json_archive(monkeypatch, tmp_path, capsys):
         log_level = "INFO"
         log_file = "logs/test.log"
         neo4j_database = "testidea"
-        ollama_model = "qwen3.6:35b"
-        ollama_embed_model = "qwen3-embedding:4b"
+        llm_model_generation = "qwen3.6:35b"
+        embed_model = "qwen3-embedding:4b"
         agent_retrieval_top_k = 3
         chat_idea_archive_dir = str(tmp_path)
 
@@ -478,8 +478,8 @@ def test_run_chat_idea_writes_json_archive(monkeypatch, tmp_path, capsys):
     assert record["retrieval_mode"] == "chunk_vector"
     assert record["config"] == {
         "neo4j_database": "testidea",
-        "ollama_model": "qwen3.6:35b",
-        "ollama_embed_model": "qwen3-embedding:4b",
+        "llm_model_generation": "qwen3.6:35b",
+        "embed_model": "qwen3-embedding:4b",
         "agent_retrieval_top_k": 3,
     }
     stdout = capsys.readouterr().out
@@ -493,8 +493,8 @@ def test_run_chat_idea_routes_seed_paper_id(monkeypatch, tmp_path, capsys):
         log_level = "INFO"
         log_file = "logs/test.log"
         neo4j_database = "testidea"
-        ollama_model = "qwen3.6:35b"
-        ollama_embed_model = "qwen3-embedding:4b"
+        llm_model_generation = "qwen3.6:35b"
+        embed_model = "qwen3-embedding:4b"
         agent_retrieval_top_k = 3
         chat_idea_archive_dir = str(tmp_path)
 
@@ -560,8 +560,8 @@ def test_run_chat_idea_routes_generation_profile_and_retrieval_mode(monkeypatch,
         log_level = "INFO"
         log_file = "logs/test.log"
         neo4j_database = "testidea"
-        ollama_model = "qwen3.6:35b"
-        ollama_embed_model = "qwen3-embedding:4b"
+        llm_model_generation = "qwen3.6:35b"
+        embed_model = "qwen3-embedding:4b"
         agent_retrieval_top_k = 3
         chat_idea_archive_dir = str(tmp_path)
 

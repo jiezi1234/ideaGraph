@@ -617,11 +617,11 @@ def test_benchmark_bootstrap_uses_structured_model_for_conversion_and_evaluation
 
     class FakeStructuredModel:
         @classmethod
-        def from_settings(cls, settings):
+        def from_settings(cls, settings, *, model_name):
             calls.setdefault("structured_models", []).append(
                 {
-                    "base_url": settings.ollama_base_url,
-                    "model": settings.ollama_model,
+                    "base_url": settings.llm_base_url,
+                    "model": model_name,
                 }
             )
             return cls()
@@ -638,7 +638,7 @@ def test_benchmark_bootstrap_uses_structured_model_for_conversion_and_evaluation
         def __init__(self, **kwargs) -> None:
             calls["workflow"] = kwargs
 
-    monkeypatch.setattr(bootstrap, "OllamaOpenAIChatModel", FakeStructuredModel)
+    monkeypatch.setattr(bootstrap, "OpenAIChatModel", FakeStructuredModel)
     monkeypatch.setattr(bootstrap, "FullTextProvider", FakeFullTextProvider)
     monkeypatch.setattr(bootstrap, "OpenDataLoaderPdfMarkdownExtractor", FakePdfExtractor)
     monkeypatch.setattr(bootstrap, "AcceptedPaperBenchmarkWorkflow", FakeWorkflow)
@@ -648,13 +648,15 @@ def test_benchmark_bootstrap_uses_structured_model_for_conversion_and_evaluation
 
     settings = Settings(
         OPENALEX_BASE_URL="https://api.openalex.org",
-        OLLAMA_BASE_URL="http://127.0.0.1:11435",
-        OLLAMA_MODEL="qwen3.6:35b",
-        OLLAMA_EMBED_MODEL="qwen3-embedding:4b",
-        OLLAMA_TIMEOUT=300,
-        OLLAMA_THINK_MODE="medium",
-        OLLAMA_CACHE_ENABLED=True,
-        OLLAMA_CACHE_DIR=".cache/model_responses",
+        LLM_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        LLM_API_KEY="sk-test",
+        LLM_MODEL_EXTRACTION="qwen3.7-flash",
+        LLM_MODEL_GENERATION="qwen3.7-plus",
+        EMBED_MODEL="text-embedding-v4",
+        LLM_TIMEOUT=300,
+        LLM_THINK_MODE="medium",
+        LLM_CACHE_ENABLED=True,
+        LLM_CACHE_DIR=".cache/model_responses",
         FULL_TEXT_OUTPUT_DIR=str(tmp_path / "data"),
         NEO4J_URI="bolt://localhost:7687",
         NEO4J_USERNAME="neo4j",
@@ -666,7 +668,7 @@ def test_benchmark_bootstrap_uses_structured_model_for_conversion_and_evaluation
 
     assert isinstance(workflow, FakeWorkflow)
     assert calls["structured_models"] == [
-        {"base_url": "http://127.0.0.1:11435", "model": "qwen3.6:35b"},
-        {"base_url": "http://127.0.0.1:11435", "model": "qwen3.6:35b"},
+        {"base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "model": "qwen3.7-plus"},
+        {"base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "model": "qwen3.7-plus"},
     ]
     assert calls["workflow"]["conversion_model"] is not calls["workflow"]["evaluation_model"]

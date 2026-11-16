@@ -262,7 +262,7 @@ Graphistry 服务端时，才需要设置 `GRAPHISTRY_SERVER` 或传入
 - 每篇论文会被逐篇抽取并增量写入 Neo4j。
 - 如果已抓取的被引论文之间存在引用关系，也会创建相应引用边。
 - 当 OpenAlex 标题存在时，论文 ID 会被规范化为可读的论文标题。
-- `chat-idea` 会将用户查询改写为 `retrieval_query` 和 `query_keywords`；论文检索节点使用 `retrieval_query` 通过 ChromaDB 持久向量索引召回候选论文，`query_keywords` 仅作为 agent 图谱工具规划上下文传入，不会被主流程自动逐个检索。Chroma 索引按 Neo4j 库名落在 `.cache/chroma/{NEO4J_DATABASE}`，并在数据变化时从 Neo4j 的论文、实体和 chunks 重新同步。chunk-vector 检索采用段落优先切块，默认 `CHUNK_MIN_TOKENS=256`、`CHUNK_MAX_TOKENS=2048`，并通过 `CHUNK_TOKENIZER_MODEL_PATH` 指向本地 HuggingFace tokenizer，让 chunk 长度更贴近生成上下文模型。随后通过 Ollama 的 OpenAI-compatible chat completions API 运行工具调用 agent 循环；该循环可以调用 `get_node_neighborhood` 获取一跳图谱上下文，最后返回按 `Problem -> Method -> Experiment` 组织的结构化中文想法。
+- `chat-idea` 会将用户查询改写为 `retrieval_query` 和 `query_keywords`；论文检索节点使用 `retrieval_query` 通过 ChromaDB 持久向量索引召回候选论文，`query_keywords` 仅作为 agent 图谱工具规划上下文传入，不会被主流程自动逐个检索。Chroma 索引按 Neo4j 库名落在 `.cache/chroma/{NEO4J_DATABASE}`，并在数据变化时从 Neo4j 的论文、实体和 chunks 重新同步。chunk-vector 检索采用段落优先切块，默认 `CHUNK_MIN_TOKENS=256`、`CHUNK_MAX_TOKENS=2048`，并通过 `CHUNK_TOKENIZER_MODEL_PATH` 指向本地 HuggingFace tokenizer，让 chunk 长度更贴近生成上下文模型。随后通过配置的 OpenAI-compatible chat completions API 运行工具调用 agent 循环；该循环可以调用 `get_node_neighborhood` 获取一跳图谱上下文，最后返回按 `Problem -> Method -> Experiment` 组织的结构化中文想法。
 - 当传入 `--seed-paper-id` 时，`chat-idea` 会按精确 `Paper.id` 从 Neo4j 加载该论文作为已选论文，并直接进入 agent 生成阶段，不再运行查询理解、embedding 召回和论文选择。
 - 当图谱工具循环不再返回 `tool_calls` 时，`chat-idea` 会先尝试把该轮 assistant 响应直接解析为 `IdeaOutput` JSON；只有内容为空或 JSON 非法时，才会回退到单独的 `final_idea_generation` 结构化生成。
 - `chat-idea` 的图谱工具查找会先尝试精确匹配 `Paper.title` 或 `Entity.id`，然后回退到不区分大小写的 `Entity.aliases`；图谱工具节点载荷会压缩为生成所需的属性。
@@ -270,7 +270,7 @@ Graphistry 服务端时，才需要设置 `GRAPHISTRY_SERVER` 或传入
 - `chat-idea` 会为每次查询写入 JSON 留档，内容包括查询理解、候选论文、选中论文、图谱工具调用轨迹、合并后的图谱上下文、生成想法、评估结果和可选 thinking trace。
 - 如果设置了 `LANGFUSE_PUBLIC_KEY` 和 `LANGFUSE_SECRET_KEY`，`chat-idea` 还会把整次运行写入 Langfuse Cloud；模型调用通过 `langfuse.openai.OpenAI` 记录 generation 和 token 用量，检索、选择、agent 和图谱工具步骤保留为工作流 observation。
 - 为了排查轮次级响应，workflow 还会额外记录 `agent_generation_round_N_result` observation，其中包含该轮返回的 `content`、`reasoning`、`finish_reason` 和归一化后的 `{input, output, total}` token 用量。
-- 当 Ollama 模型暴露 `message.thinking` 时，`chat-idea` 会打印最终想法生成阶段的 thinking trace，用于调试。
+- 当模型暴露 `message.thinking` 时，`chat-idea` 会打印最终想法生成阶段的 thinking trace，用于调试。
 - 查询理解、论文到 idea 转换、想法 agent 行为、实体抽取和想法评估的 prompt
   模板以 Python 模块形式位于 `src/prompts/`，应通过 `src.prompts` 导入，
   不再读取 `.txt` 文件。

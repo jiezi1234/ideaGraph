@@ -35,7 +35,19 @@ class OpenAIStructuredResult:
     usage: dict[str, int] | None = None
 
 
-class OllamaOpenAIChatModel:
+def normalize_base_url(base_url: str) -> str:
+    """把 OpenAI 兼容端点统一补成 SDK 期望的 `.../v1` 形式。
+
+    托管厂商的写法不统一（有的只写根域名，有的写到 /compatible-mode），
+    统一在这里补齐；已经以 /v1 结尾的直接返回，重复调用保持幂等。
+    """
+    value = (base_url or "").strip().rstrip("/")
+    if not value:
+        raise ValueError("LLM_BASE_URL must not be empty")
+    return value if value.endswith("/v1") else f"{value}/v1"
+
+
+class OpenAIChatModel:
     def __init__(
         self,
         *,
@@ -52,27 +64,26 @@ class OllamaOpenAIChatModel:
         self._think_mode = think_mode
 
     @classmethod
-    def from_settings(cls, settings):
+    def from_settings(cls, settings, *, model_name: str):
         tracing_enabled = (
             bool(getattr(settings, "langfuse_tracing_enabled", True))
             and bool((getattr(settings, "langfuse_public_key", "") or "").strip())
             and bool((getattr(settings, "langfuse_secret_key", "") or "").strip())
         )
         client_class = _load_openai_client_class(tracing_enabled=tracing_enabled)
-        base_url = f"{getattr(settings, 'ollama_base_url').rstrip('/')}/v1"
-        api_key = "ollama"
-        timeout = getattr(settings, "ollama_timeout", None)
+        api_key = (getattr(settings, "llm_api_key", "") or "").strip()
         client = client_class(
-            base_url=base_url,
-            api_key=api_key,
-            timeout=timeout,
+            base_url=normalize_base_url(getattr(settings, "llm_base_url")),
+            # 本地 OpenAI 兼容服务通常不校验 key，但 SDK 要求非空，这里给个占位值。
+            api_key=api_key or "unused",
+            timeout=getattr(settings, "llm_timeout", None),
         )
         return cls(
             client=client,
-            model_name=getattr(settings, "ollama_model"),
+            model_name=model_name,
             tracing_enabled=tracing_enabled,
             temperature=1.0,
-            think_mode=getattr(settings, "ollama_think_mode", None),
+            think_mode=getattr(settings, "llm_think_mode", None),
         )
 
     def chat(

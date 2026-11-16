@@ -17,7 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.method_idea_format import NormalizedMethodIdea
 from scripts.method_idea_format import load_normalized_method_idea
 from src.config.settings import Settings
-from src.models.ollama_openai import OllamaOpenAIChatModel
+from src.models.openai_chat import OpenAIChatModel
 from src.models.structured_cache import CachedStructuredJsonModel
 from src.prompts import COMPARE_RESEARCH_IDEA_PROMPT
 from src.schemas.agent import IdeaComparison
@@ -301,15 +301,16 @@ def _slug(value: str) -> str:
 
 
 def _build_model_from_settings(settings: Settings):
-    model = OllamaOpenAIChatModel.from_settings(settings)
-    if not settings.ollama_cache_enabled:
+    model = OpenAIChatModel.from_settings(settings, model_name=settings.llm_model_generation)
+    if not settings.llm_cache_enabled:
         return model
     return CachedStructuredJsonModel(
         model,
-        cache_dir=settings.ollama_cache_dir,
+        cache_dir=settings.llm_cache_dir,
         cache_identity={
-            "model": settings.ollama_model,
-            "think_mode": settings.ollama_think_mode,
+            "model": settings.llm_model_generation,
+            "base_url": settings.llm_base_url,
+            "think_mode": settings.llm_think_mode,
             "temperature": 1.0,
         },
     )

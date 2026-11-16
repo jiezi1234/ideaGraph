@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.config.settings import Settings
-from src.models.ollama_embeddings import OllamaEmbeddingModel
+from src.models.openai_embeddings import OpenAIEmbeddingModel
 from src.retrieval.embedding_cache import PaperEmbeddingCache
 from src.retrieval.vector_retriever import _cosine_similarity, _entity_embedding_text
 from src.storage.graph.neo4j_repository import Neo4jGraphRepository
@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
 def cached_embedding(
     *,
     cache: PaperEmbeddingCache,
-    embedder: OllamaEmbeddingModel,
+    embedder: OpenAIEmbeddingModel,
     cache_id: str,
     text: str,
 ) -> tuple[list[float], bool]:
@@ -87,10 +87,11 @@ def main() -> None:
         password=settings.neo4j_password,
         database=settings.neo4j_database,
     )
-    embedder = OllamaEmbeddingModel(
-        base_url=settings.ollama_base_url,
-        model_name=settings.ollama_embed_model,
-        timeout=settings.ollama_timeout,
+    embedder = OpenAIEmbeddingModel(
+        base_url=settings.resolved_embed_base_url,
+        api_key=settings.resolved_embed_api_key,
+        model_name=settings.embed_model,
+        timeout=settings.llm_timeout,
     )
     cache = PaperEmbeddingCache(cache_dir=settings.paper_embedding_cache_dir)
 
@@ -137,7 +138,7 @@ def main() -> None:
     scored.sort(key=lambda item: item["cosine"], reverse=True)
     print(f"query: {args.query}")
     print(f"neo4j_database: {settings.neo4j_database}")
-    print(f"embedding_model: {settings.ollama_embed_model}")
+    print(f"embedding_model: {settings.embed_model}")
     print(f"worker_count: {settings.embedding_worker_count}")
     print(f"entity_count: {len(scored)}")
     print(f"query_cache_hit: {query_cache_hit}")

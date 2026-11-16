@@ -21,8 +21,8 @@ class MiniIdea(BaseModel):
     summary: str
 
 
-def test_openai_ollama_model_parses_tool_calls_and_usage():
-    from src.models.ollama_openai import OllamaOpenAIChatModel
+def test_openai_chat_model_parses_tool_calls_and_usage():
+    from src.models.openai_chat import OpenAIChatModel
 
     captured = {}
 
@@ -53,7 +53,7 @@ def test_openai_ollama_model_parses_tool_calls_and_usage():
             )
 
     fake_client = _Object(chat=_Object(completions=FakeCompletions()))
-    model = OllamaOpenAIChatModel(
+    model = OpenAIChatModel(
         client=fake_client,
         model_name="qwen3.6:35b",
         tracing_enabled=False,
@@ -89,8 +89,8 @@ def test_openai_ollama_model_parses_tool_calls_and_usage():
     assert result.tool_calls[0].arguments == {"node_id": "Graph-guided discovery", "page": 1}
 
 
-def test_openai_ollama_model_passes_langfuse_observation_fields_when_enabled():
-    from src.models.ollama_openai import OllamaOpenAIChatModel
+def test_openai_chat_model_passes_langfuse_observation_fields_when_enabled():
+    from src.models.openai_chat import OpenAIChatModel
 
     captured = {}
 
@@ -103,7 +103,7 @@ def test_openai_ollama_model_passes_langfuse_observation_fields_when_enabled():
             )
 
     fake_client = _Object(chat=_Object(completions=FakeCompletions()))
-    model = OllamaOpenAIChatModel(
+    model = OpenAIChatModel(
         client=fake_client,
         model_name="qwen3.6:35b",
         tracing_enabled=True,
@@ -121,8 +121,8 @@ def test_openai_ollama_model_passes_langfuse_observation_fields_when_enabled():
     assert captured["reasoning_effort"] == "low"
 
 
-def test_openai_ollama_model_structured_json_uses_json_schema_and_pydantic():
-    from src.models.ollama_openai import OllamaOpenAIChatModel
+def test_openai_chat_model_structured_json_uses_json_schema_and_pydantic():
+    from src.models.openai_chat import OpenAIChatModel
 
     captured = {}
 
@@ -144,7 +144,7 @@ def test_openai_ollama_model_structured_json_uses_json_schema_and_pydantic():
             )
 
     fake_client = _Object(chat=_Object(completions=FakeCompletions()))
-    model = OllamaOpenAIChatModel(
+    model = OpenAIChatModel(
         client=fake_client,
         model_name="qwen3.6:35b",
         tracing_enabled=False,
@@ -165,8 +165,8 @@ def test_openai_ollama_model_structured_json_uses_json_schema_and_pydantic():
     assert result.usage == {"input": 5, "output": 6, "total": 11}
 
 
-def test_openai_ollama_model_structured_json_extracts_prefixed_json_payload():
-    from src.models.ollama_openai import OllamaOpenAIChatModel
+def test_openai_chat_model_structured_json_extracts_prefixed_json_payload():
+    from src.models.openai_chat import OpenAIChatModel
 
     class FakeCompletions:
         def create(self, **kwargs):
@@ -186,7 +186,7 @@ def test_openai_ollama_model_structured_json_extracts_prefixed_json_payload():
             )
 
     fake_client = _Object(chat=_Object(completions=FakeCompletions()))
-    model = OllamaOpenAIChatModel(
+    model = OpenAIChatModel(
         client=fake_client,
         model_name="qwen3.6:35b",
         tracing_enabled=False,
@@ -202,7 +202,7 @@ def test_openai_ollama_model_structured_json_extracts_prefixed_json_payload():
 
 
 def test_cached_structured_json_model_reuses_structured_response(tmp_path):
-    from src.models.ollama_openai import OpenAIStructuredResult
+    from src.models.openai_chat import OpenAIStructuredResult
     from src.models.structured_cache import CachedStructuredJsonModel
 
     class FakeStructuredModel:
@@ -244,34 +244,82 @@ def test_cached_structured_json_model_reuses_structured_response(tmp_path):
     assert cached_payload["parsed"] == {"title": "Cached idea", "summary": "Reuse structured output."}
 
 
-def test_bootstrap_wraps_structured_model_when_ollama_cache_enabled(tmp_path, monkeypatch):
+def test_bootstrap_wraps_structured_model_when_cache_enabled(tmp_path, monkeypatch):
     from src.app import bootstrap
     from src.config.settings import Settings
     from src.models.structured_cache import CachedStructuredJsonModel
 
-    class FakeOllamaOpenAIChatModel:
+    class FakeOpenAIChatModel:
         @classmethod
-        def from_settings(cls, settings):
-            assert settings.ollama_cache_enabled is True
+        def from_settings(cls, settings, *, model_name):
+            assert settings.llm_cache_enabled is True
+            assert model_name == "qwen3.7-plus"
             return cls()
 
-    monkeypatch.setattr(bootstrap, "OllamaOpenAIChatModel", FakeOllamaOpenAIChatModel)
+    monkeypatch.setattr(bootstrap, "OpenAIChatModel", FakeOpenAIChatModel)
     settings = Settings(
         OPENALEX_BASE_URL="https://api.openalex.org",
-        OLLAMA_BASE_URL="http://127.0.0.1:11435",
-        OLLAMA_MODEL="qwen3.6:35b",
-        OLLAMA_EMBED_MODEL="qwen3-embedding:4b",
-        OLLAMA_TIMEOUT=300,
-        OLLAMA_THINK_MODE="medium",
-        OLLAMA_CACHE_ENABLED=True,
-        OLLAMA_CACHE_DIR=str(tmp_path / "model-cache"),
+        LLM_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        LLM_API_KEY="sk-test",
+        LLM_MODEL_EXTRACTION="qwen3.7-flash",
+        LLM_MODEL_GENERATION="qwen3.7-plus",
+        EMBED_MODEL="text-embedding-v4",
+        LLM_TIMEOUT=300,
+        LLM_THINK_MODE="medium",
+        LLM_CACHE_ENABLED=True,
+        LLM_CACHE_DIR=str(tmp_path / "model-cache"),
         NEO4J_URI="bolt://localhost:7687",
         NEO4J_USERNAME="neo4j",
         NEO4J_PASSWORD="secret",
         NEO4J_DATABASE="idea",
     )
 
-    model = bootstrap._build_structured_model(settings)
+    model = bootstrap._build_structured_model(settings, model_name=settings.llm_model_generation)
 
     assert isinstance(model, CachedStructuredJsonModel)
     assert model.cache_dir == tmp_path / "model-cache"
+
+
+def test_normalize_base_url_appends_v1_once():
+    from src.models.openai_chat import normalize_base_url
+
+    assert (
+        normalize_base_url("https://dashscope.aliyuncs.com/compatible-mode")
+        == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )
+    assert (
+        normalize_base_url("https://dashscope.aliyuncs.com/compatible-mode/v1/")
+        == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )
+    assert normalize_base_url("https://api.deepseek.com") == "https://api.deepseek.com/v1"
+
+
+def test_openai_embedding_model_calls_embeddings_endpoint(monkeypatch):
+    from src.models import openai_embeddings
+
+    captured = {}
+
+    class FakeEmbeddings:
+        def create(self, **kwargs):
+            captured["create"] = kwargs
+            return _Object(data=[_Object(embedding=[0.1, 0.2])])
+
+    class FakeClient:
+        def __init__(self, **kwargs) -> None:
+            captured["client"] = kwargs
+            self.embeddings = FakeEmbeddings()
+
+    monkeypatch.setattr(openai_embeddings, "OpenAI", FakeClient)
+
+    model = openai_embeddings.OpenAIEmbeddingModel(
+        base_url="https://dashscope.aliyuncs.com/compatible-mode",
+        api_key="sk-test",
+        model_name="text-embedding-v4",
+        timeout=30,
+    )
+
+    assert model.model_name == "text-embedding-v4"
+    assert model.embed("hello") == [0.1, 0.2]
+    assert captured["client"]["base_url"] == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert captured["client"]["api_key"] == "sk-test"
+    assert captured["create"] == {"model": "text-embedding-v4", "input": "hello"}

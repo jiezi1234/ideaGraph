@@ -92,7 +92,7 @@ def test_select_targets_prefers_query_related_records_and_preserves_reference_st
     assert candidates[0]["dataset_index"] == 1
 
 
-def test_select_targets_can_use_ollama_embedding_backend_with_cache(tmp_path):
+def test_select_targets_can_use_api_embedding_backend_with_cache(tmp_path):
     pdf_dir = tmp_path / "papers_data"
     pdf_dir.mkdir()
     (pdf_dir / "language fields.pdf").write_text("pdf", encoding="utf-8")
@@ -123,13 +123,13 @@ def test_select_targets_can_use_ollama_embedding_backend_with_cache(tmp_path):
         count=1,
         query="3D scene language understanding",
         candidate_pool_size=2,
-        embedding_backend="ollama",
+        embedding_backend="api",
         embedder=embedder,
         cache=cache,
     )
 
     assert selected[0]["dataset_index"] == 1
-    assert selected[0]["embedding_backend"] == "ollama"
+    assert selected[0]["embedding_backend"] == "api"
     assert len(embedder.calls) == 3
 
     embedder_again = FakeEmbedder()
@@ -140,7 +140,7 @@ def test_select_targets_can_use_ollama_embedding_backend_with_cache(tmp_path):
         count=1,
         query="3D scene language understanding",
         candidate_pool_size=2,
-        embedding_backend="ollama",
+        embedding_backend="api",
         embedder=embedder_again,
         cache=cache,
     )
@@ -149,8 +149,8 @@ def test_select_targets_can_use_ollama_embedding_backend_with_cache(tmp_path):
     assert embedder_again.calls == []
 
 
-def test_ollama_auto_selection_method_uses_centroid_strategy():
-    assert _selection_method("ollama", has_query_or_anchor=False) == "ollama_auto_centroid_mmr"
+def test_api_auto_selection_method_uses_centroid_strategy():
+    assert _selection_method("api", has_query_or_anchor=False) == "api_auto_centroid_mmr"
 
 
 def test_write_outputs_excludes_target_pdfs_from_reference_manifest(tmp_path):

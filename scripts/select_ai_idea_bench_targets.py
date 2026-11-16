@@ -18,7 +18,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.config.settings import Settings
-from src.models.ollama_embeddings import OllamaEmbeddingModel
+from src.models.openai_embeddings import OpenAIEmbeddingModel
 from src.retrieval.base import EmbeddingModel
 from src.retrieval.embedding_cache import PaperEmbeddingCache
 from src.workflows.ai_idea_bench_pilot import build_pilot_records
@@ -100,9 +100,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--require-target-pdf", action="store_true")
     parser.add_argument(
         "--embedding-backend",
-        choices=["tfidf", "ollama"],
+        choices=["tfidf", "api"],
         default="tfidf",
-        help="Use local TF-IDF vectors or the repo Ollama embedding model with PaperEmbeddingCache.",
+        help="Use local TF-IDF vectors or the repo API embedding model with PaperEmbeddingCache.",
     )
     parser.add_argument(
         "--diversity-weight",
@@ -330,10 +330,10 @@ def _build_vectors(
     if embedding_backend == "tfidf":
         vectors, idf = build_tfidf_vectors(texts)
         return vectors, idf
-    if embedding_backend != "ollama":
+    if embedding_backend != "api":
         raise ValueError(f"Unsupported embedding backend: {embedding_backend}")
     if embedder is None or cache is None:
-        raise ValueError("Ollama embedding backend requires embedder and cache.")
+        raise ValueError("API embedding backend requires embedder and cache.")
 
     def embed_target(item: tuple[dict, str]) -> DenseVector:
         record, text = item
@@ -382,9 +382,9 @@ def _resolve_query_vector(
     cache: PaperEmbeddingCache | None,
 ) -> Vector | None:
     if query:
-        if embedding_backend == "ollama":
+        if embedding_backend == "api":
             if embedder is None or cache is None:
-                raise ValueError("Ollama embedding backend requires embedder and cache.")
+                raise ValueError("API embedding backend requires embedder and cache.")
             query_vector = cached_embedding(
                 cache=cache,
                 embedder=embedder,
@@ -711,12 +711,13 @@ def main() -> int:
     dataset_root = dataset_json.parent
     pdf_dir = args.pdf_dir or dataset_root / "papers_data"
     records = json.loads(dataset_json.read_text(encoding="utf-8"))
-    settings = Settings() if args.embedding_backend == "ollama" else None
+    settings = Settings() if args.embedding_backend == "api" else None
     embedder = (
-        OllamaEmbeddingModel(
-            base_url=settings.ollama_base_url,
-            model_name=settings.ollama_embed_model,
-            timeout=settings.ollama_timeout,
+        OpenAIEmbeddingModel(
+            base_url=settings.resolved_embed_base_url,
+            api_key=settings.resolved_embed_api_key,
+            model_name=settings.embed_model,
+            timeout=settings.llm_timeout,
         )
         if settings is not None
         else None
@@ -766,8 +767,8 @@ def main() -> int:
 
 
 def _selection_method(embedding_backend: str, has_query_or_anchor: bool) -> str:
-    if embedding_backend == "ollama" and not has_query_or_anchor:
-        return "ollama_auto_centroid_mmr"
+    if embedding_backend == "api" and not has_query_or_anchor:
+        return "api_auto_centroid_mmr"
     suffix = "query_mmr" if has_query_or_anchor else "auto_dense_cluster_mmr"
     return f"{embedding_backend}_{suffix}"
 

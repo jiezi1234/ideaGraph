@@ -703,12 +703,12 @@ def test_build_mvp_workflow_passes_configured_openalex_works_filter(monkeypatch,
 
     class FakeModel:
         @classmethod
-        def from_settings(cls, settings):
+        def from_settings(cls, settings, *, model_name):
             calls["model"] = {
-                "base_url": settings.ollama_base_url,
-                "model": settings.ollama_model,
-                "think_mode": settings.ollama_think_mode,
-                "timeout": settings.ollama_timeout,
+                "base_url": settings.llm_base_url,
+                "model": model_name,
+                "think_mode": settings.llm_think_mode,
+                "timeout": settings.llm_timeout,
             }
             return cls()
 
@@ -762,7 +762,7 @@ def test_build_mvp_workflow_passes_configured_openalex_works_filter(monkeypatch,
 
     monkeypatch.setattr(bootstrap, "OpenAlexClient", FakeOpenAlexClient)
     monkeypatch.setattr(bootstrap, "OpenAlexPaperService", FakePaperService)
-    monkeypatch.setattr(bootstrap, "OllamaOpenAIChatModel", FakeModel)
+    monkeypatch.setattr(bootstrap, "OpenAIChatModel", FakeModel)
     monkeypatch.setattr(bootstrap, "PaperExtractor", FakeExtractor)
     monkeypatch.setattr(bootstrap, "Neo4jGraphRepository", FakeRepository)
     monkeypatch.setattr(bootstrap, "ArxivClient", FakeArxivClient)
@@ -778,11 +778,13 @@ def test_build_mvp_workflow_passes_configured_openalex_works_filter(monkeypatch,
         OPENALEX_WORKS_FILTER="topics.field.id:17",
         OPENALEX_API_KEYS="key-a,key-b",
         OPENALEX_API_KEY_COOLDOWN_SECONDS=60,
-        OLLAMA_BASE_URL="http://127.0.0.1:11435",
-        OLLAMA_MODEL="qwen3.6:35b",
-        OLLAMA_EMBED_MODEL="qwen3-embedding:4b",
-        OLLAMA_TIMEOUT=300,
-        OLLAMA_THINK_MODE="medium",
+        LLM_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        LLM_API_KEY="sk-test",
+        LLM_MODEL_EXTRACTION="qwen3.7-flash",
+        LLM_MODEL_GENERATION="qwen3.7-plus",
+        EMBED_MODEL="text-embedding-v4",
+        LLM_TIMEOUT=300,
+        LLM_THINK_MODE="medium",
         NEO4J_URI="bolt://localhost:7687",
         NEO4J_USERNAME="neo4j",
         NEO4J_PASSWORD="secret",
@@ -804,8 +806,8 @@ def test_build_mvp_workflow_passes_configured_openalex_works_filter(monkeypatch,
         "api_key_cooldown_seconds": 60,
     }
     assert calls["model"] == {
-        "base_url": "http://127.0.0.1:11435",
-        "model": "qwen3.6:35b",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "model": "qwen3.7-flash",
         "think_mode": "medium",
         "timeout": 300.0,
     }

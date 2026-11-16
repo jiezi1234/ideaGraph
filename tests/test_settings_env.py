@@ -17,17 +17,19 @@ def test_settings_can_load_from_environment(monkeypatch):
     monkeypatch.setenv("OPENALEX_WORKS_FILTER", "topics.field.id:17")
     monkeypatch.setenv("OPENALEX_API_KEYS", "key-a,key-b")
     monkeypatch.setenv("OPENALEX_API_KEY_COOLDOWN_SECONDS", "60")
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11435")
-    monkeypatch.setenv("OLLAMA_MODEL", "qwen3.6:35b")
-    monkeypatch.setenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:4b")
+    monkeypatch.setenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    monkeypatch.setenv("LLM_API_KEY", "sk-test")
+    monkeypatch.setenv("LLM_MODEL_EXTRACTION", "qwen3.7-flash")
+    monkeypatch.setenv("LLM_MODEL_GENERATION", "qwen3.7-plus")
+    monkeypatch.setenv("EMBED_MODEL", "text-embedding-v4")
     monkeypatch.setenv("NEO4J_URI", "bolt://10.160.4.176:7687")
     monkeypatch.setenv("NEO4J_USERNAME", "neo4j")
     monkeypatch.setenv("NEO4J_PASSWORD", "neo4j102")
     monkeypatch.setenv("NEO4J_DATABASE", "testidea")
-    monkeypatch.setenv("OLLAMA_TIMEOUT", "300")
-    monkeypatch.setenv("OLLAMA_THINK_MODE", "medium")
-    monkeypatch.setenv("OLLAMA_CACHE_ENABLED", "true")
-    monkeypatch.setenv("OLLAMA_CACHE_DIR", ".cache/model_responses")
+    monkeypatch.setenv("LLM_TIMEOUT", "300")
+    monkeypatch.setenv("LLM_THINK_MODE", "medium")
+    monkeypatch.setenv("LLM_CACHE_ENABLED", "true")
+    monkeypatch.setenv("LLM_CACHE_DIR", ".cache/model_responses")
     monkeypatch.setenv("AGENT_RETRIEVAL_TOP_K", "5")
     monkeypatch.setenv("CHAT_IDEA_ARCHIVE_DIR", "exports/test-chat-runs")
     monkeypatch.setenv("PAPER_EMBEDDING_CACHE_DIR", ".cache/paper_embeddings")
@@ -57,15 +59,17 @@ def test_settings_can_load_from_environment(monkeypatch):
     assert settings.openalex_works_filter == "topics.field.id:17"
     assert settings.openalex_api_keys == "key-a,key-b"
     assert settings.openalex_api_key_cooldown_seconds == 60
-    assert settings.ollama_base_url == "http://127.0.0.1:11435"
-    assert settings.ollama_model == "qwen3.6:35b"
-    assert settings.ollama_embed_model == "qwen3-embedding:4b"
-    assert settings.ollama_timeout == 300
-    assert settings.ollama_think_mode == "medium"
+    assert settings.llm_base_url == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert settings.llm_api_key == "sk-test"
+    assert settings.llm_model_extraction == "qwen3.7-flash"
+    assert settings.llm_model_generation == "qwen3.7-plus"
+    assert settings.embed_model == "text-embedding-v4"
+    assert settings.llm_timeout == 300
+    assert settings.llm_think_mode == "medium"
     assert settings.neo4j_uri == "bolt://10.160.4.176:7687"
     assert settings.neo4j_database == "testidea"
-    assert settings.ollama_cache_enabled is True
-    assert settings.ollama_cache_dir == ".cache/model_responses"
+    assert settings.llm_cache_enabled is True
+    assert settings.llm_cache_dir == ".cache/model_responses"
     assert settings.agent_retrieval_top_k == 5
     assert settings.chat_idea_archive_dir == "exports/test-chat-runs"
     assert settings.paper_embedding_cache_dir == ".cache/paper_embeddings"
@@ -90,14 +94,34 @@ def test_settings_can_load_from_environment(monkeypatch):
     assert settings.log_file == "logs/test.log"
 
 
+def test_settings_embed_credentials_fall_back_to_llm(monkeypatch):
+    monkeypatch.setenv("OPENALEX_BASE_URL", "https://api.openalex.org")
+    monkeypatch.setenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    monkeypatch.setenv("LLM_API_KEY", "sk-llm")
+    monkeypatch.setenv("LLM_MODEL_EXTRACTION", "qwen3.7-flash")
+    monkeypatch.setenv("LLM_MODEL_GENERATION", "qwen3.7-plus")
+    monkeypatch.setenv("EMBED_MODEL", "text-embedding-v4")
+    monkeypatch.setenv("LLM_TIMEOUT", "300")
+    monkeypatch.setenv("NEO4J_URI", "bolt://localhost:7687")
+    monkeypatch.setenv("NEO4J_USERNAME", "neo4j")
+    monkeypatch.setenv("NEO4J_PASSWORD", "secret")
+    monkeypatch.setenv("NEO4J_DATABASE", "idea")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.resolved_embed_base_url == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert settings.resolved_embed_api_key == "sk-llm"
+
+
 def test_settings_leaves_citation_seed_threshold_unset_by_default(monkeypatch):
     monkeypatch.delenv("CITATION_SEED_MIN_CITED_BY_COUNT", raising=False)
     monkeypatch.setenv("OPENALEX_BASE_URL", "https://api.openalex.org")
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11435")
-    monkeypatch.setenv("OLLAMA_MODEL", "qwen3.6:35b")
-    monkeypatch.setenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:4b")
-    monkeypatch.setenv("OLLAMA_TIMEOUT", "300")
-    monkeypatch.setenv("OLLAMA_THINK_MODE", "medium")
+    monkeypatch.setenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    monkeypatch.setenv("LLM_MODEL_EXTRACTION", "qwen3.6:35b")
+    monkeypatch.setenv("LLM_MODEL_GENERATION", "qwen3.6:35b")
+    monkeypatch.setenv("EMBED_MODEL", "text-embedding-v4")
+    monkeypatch.setenv("LLM_TIMEOUT", "300")
+    monkeypatch.setenv("LLM_THINK_MODE", "medium")
     monkeypatch.setenv("NEO4J_URI", "bolt://10.160.4.176:7687")
     monkeypatch.setenv("NEO4J_USERNAME", "neo4j")
     monkeypatch.setenv("NEO4J_PASSWORD", "neo4j102")
@@ -216,20 +240,21 @@ def test_idea_output_requires_all_fields(payload):
         IdeaOutput(**payload)
 
 
-def test_settings_requires_ollama_embed_model_env(monkeypatch):
+def test_settings_requires_embed_model_env(monkeypatch):
     monkeypatch.setenv("OPENALEX_BASE_URL", "https://api.openalex.org")
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11435")
-    monkeypatch.setenv("OLLAMA_MODEL", "qwen3.6:35b")
+    monkeypatch.setenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    monkeypatch.setenv("LLM_MODEL_EXTRACTION", "qwen3.6:35b")
+    monkeypatch.setenv("LLM_MODEL_GENERATION", "qwen3.6:35b")
     import os
-    if "OLLAMA_EMBED_MODEL" in os.environ:
-        del os.environ["OLLAMA_EMBED_MODEL"]
-    monkeypatch.delenv("OLLAMA_EMBED_MODEL", raising=False)
+    if "EMBED_MODEL" in os.environ:
+        del os.environ["EMBED_MODEL"]
+    monkeypatch.delenv("EMBED_MODEL", raising=False)
     monkeypatch.setenv("NEO4J_URI", "bolt://10.160.4.176:7687")
     monkeypatch.setenv("NEO4J_USERNAME", "neo4j")
     monkeypatch.setenv("NEO4J_PASSWORD", "neo4j102")
     monkeypatch.setenv("NEO4J_DATABASE", "testidea")
-    monkeypatch.setenv("OLLAMA_TIMEOUT", "300")
-    monkeypatch.setenv("OLLAMA_THINK_MODE", "medium")
+    monkeypatch.setenv("LLM_TIMEOUT", "300")
+    monkeypatch.setenv("LLM_THINK_MODE", "medium")
 
     # also unset it from the loaded environment file
     monkeypatch.setitem(Settings.model_config, "env_file", None)
@@ -240,15 +265,16 @@ def test_settings_requires_ollama_embed_model_env(monkeypatch):
 @pytest.mark.parametrize("top_k", ["0", "-1"])
 def test_agent_retrieval_top_k_must_be_positive(monkeypatch, top_k):
     monkeypatch.setenv("OPENALEX_BASE_URL", "https://api.openalex.org")
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11435")
-    monkeypatch.setenv("OLLAMA_MODEL", "qwen3.6:35b")
-    monkeypatch.setenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:4b")
+    monkeypatch.setenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    monkeypatch.setenv("LLM_MODEL_EXTRACTION", "qwen3.6:35b")
+    monkeypatch.setenv("LLM_MODEL_GENERATION", "qwen3.6:35b")
+    monkeypatch.setenv("EMBED_MODEL", "text-embedding-v4")
     monkeypatch.setenv("NEO4J_URI", "bolt://10.160.4.176:7687")
     monkeypatch.setenv("NEO4J_USERNAME", "neo4j")
     monkeypatch.setenv("NEO4J_PASSWORD", "neo4j102")
     monkeypatch.setenv("NEO4J_DATABASE", "testidea")
-    monkeypatch.setenv("OLLAMA_TIMEOUT", "300")
-    monkeypatch.setenv("OLLAMA_THINK_MODE", "medium")
+    monkeypatch.setenv("LLM_TIMEOUT", "300")
+    monkeypatch.setenv("LLM_THINK_MODE", "medium")
     monkeypatch.setenv("AGENT_RETRIEVAL_TOP_K", top_k)
 
     with pytest.raises(ValidationError):
@@ -258,15 +284,16 @@ def test_agent_retrieval_top_k_must_be_positive(monkeypatch, top_k):
 @pytest.mark.parametrize("worker_count", ["0", "-1"])
 def test_embedding_worker_count_must_be_positive(monkeypatch, worker_count):
     monkeypatch.setenv("OPENALEX_BASE_URL", "https://api.openalex.org")
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11435")
-    monkeypatch.setenv("OLLAMA_MODEL", "qwen3.6:35b")
-    monkeypatch.setenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:4b")
+    monkeypatch.setenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    monkeypatch.setenv("LLM_MODEL_EXTRACTION", "qwen3.6:35b")
+    monkeypatch.setenv("LLM_MODEL_GENERATION", "qwen3.6:35b")
+    monkeypatch.setenv("EMBED_MODEL", "text-embedding-v4")
     monkeypatch.setenv("NEO4J_URI", "bolt://10.160.4.176:7687")
     monkeypatch.setenv("NEO4J_USERNAME", "neo4j")
     monkeypatch.setenv("NEO4J_PASSWORD", "neo4j102")
     monkeypatch.setenv("NEO4J_DATABASE", "testidea")
-    monkeypatch.setenv("OLLAMA_TIMEOUT", "300")
-    monkeypatch.setenv("OLLAMA_THINK_MODE", "medium")
+    monkeypatch.setenv("LLM_TIMEOUT", "300")
+    monkeypatch.setenv("LLM_THINK_MODE", "medium")
     monkeypatch.setenv("EMBEDDING_WORKER_COUNT", worker_count)
 
     with pytest.raises(ValidationError):
@@ -275,15 +302,16 @@ def test_embedding_worker_count_must_be_positive(monkeypatch, worker_count):
 
 def test_chunk_min_tokens_cannot_exceed_chunk_max_tokens(monkeypatch):
     monkeypatch.setenv("OPENALEX_BASE_URL", "https://api.openalex.org")
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11435")
-    monkeypatch.setenv("OLLAMA_MODEL", "qwen3.6:35b")
-    monkeypatch.setenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:4b")
+    monkeypatch.setenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    monkeypatch.setenv("LLM_MODEL_EXTRACTION", "qwen3.6:35b")
+    monkeypatch.setenv("LLM_MODEL_GENERATION", "qwen3.6:35b")
+    monkeypatch.setenv("EMBED_MODEL", "text-embedding-v4")
     monkeypatch.setenv("NEO4J_URI", "bolt://10.160.4.176:7687")
     monkeypatch.setenv("NEO4J_USERNAME", "neo4j")
     monkeypatch.setenv("NEO4J_PASSWORD", "neo4j102")
     monkeypatch.setenv("NEO4J_DATABASE", "testidea")
-    monkeypatch.setenv("OLLAMA_TIMEOUT", "300")
-    monkeypatch.setenv("OLLAMA_THINK_MODE", "medium")
+    monkeypatch.setenv("LLM_TIMEOUT", "300")
+    monkeypatch.setenv("LLM_THINK_MODE", "medium")
     monkeypatch.setenv("CHUNK_MIN_TOKENS", "2049")
     monkeypatch.setenv("CHUNK_MAX_TOKENS", "2048")
 

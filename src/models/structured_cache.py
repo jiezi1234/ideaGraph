@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.models.ollama_openai import OpenAIStructuredResult
+from src.models.openai_chat import OpenAIStructuredResult
 
 
 class CachedStructuredJsonModel:

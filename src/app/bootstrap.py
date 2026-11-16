@@ -13,8 +13,8 @@ from src.ingestion.openalex_client import OpenAlexClient
 from src.ingestion.openalex_service import OpenAlexPaperService
 from src.ingestion.openreview_client import OpenReviewClient
 from src.ingestion.pdf_downloader import PdfDownloader
-from src.models.ollama_embeddings import OllamaEmbeddingModel
-from src.models.ollama_openai import OllamaOpenAIChatModel
+from src.models.openai_chat import OpenAIChatModel
+from src.models.openai_embeddings import OpenAIEmbeddingModel
 from src.models.structured_cache import CachedStructuredJsonModel
 from src.agent.generation_profiles import resolve_generation_profile
 from src.prompts import CHAT_IDEA_AGENT_PROMPT
@@ -73,7 +73,7 @@ def build_mvp_workflow(settings: Settings) -> MvpGraphBuildWorkflow:
         api_key_cooldown_seconds=settings.openalex_api_key_cooldown_seconds,
     )
     paper_service = OpenAlexPaperService(openalex_client)
-    model = _build_structured_model(settings)
+    model = _build_structured_model(settings, model_name=settings.llm_model_extraction)
     extractor = PaperExtractor(model, prompt_template=load_extract_prompt_template())
     if settings.extract_entities_enabled and settings.full_text_extraction_enabled:
         extractor = _build_chunked_paper_extractor(extractor, settings)
@@ -102,15 +102,10 @@ def build_mvp_workflow(settings: Settings) -> MvpGraphBuildWorkflow:
     resolver = None
     relation_resolver = None
     if settings.entity_resolution_enabled and settings.extract_entities_enabled:
-        from src.models.ollama_embeddings import OllamaEmbeddingModel
         from src.retrieval.embedding_cache import PaperEmbeddingCache
         from src.knowledge.entity_resolver import EntityResolutionService
         from src.knowledge.relation_resolver import RelationResolutionService
-        embedder = OllamaEmbeddingModel(
-            base_url=settings.ollama_base_url,
-            model_name=settings.ollama_embed_model,
-            timeout=settings.ollama_timeout,
-        )
+        embedder = _build_embedder(settings)
         embedding_cache = PaperEmbeddingCache(settings.paper_embedding_cache_dir)
         resolver = EntityResolutionService(
             model=model,
@@ -151,11 +146,7 @@ def build_idea_chat_workflow(
         password=settings.neo4j_password,
         database=settings.neo4j_database,
     )
-    embedder = OllamaEmbeddingModel(
-        base_url=settings.ollama_base_url,
-        model_name=settings.ollama_embed_model,
-        timeout=settings.ollama_timeout,
-    )
+    embedder = _build_embedder(settings)
     # chunk 大小必须贴近生成上下文模型的 tokenizer，避免长中文段落被空白切词低估。
     chunk_tokenizer = HuggingFaceChunkTokenizer.from_model_path(
         settings.chunk_tokenizer_model_path,
@@ -188,8 +179,8 @@ def build_idea_chat_workflow(
     )
     selector = TopScorePaperSelector()
     langfuse_client = build_langfuse_client(settings)
-    model = _build_structured_model(settings)
-    evaluation_model = _build_structured_model(settings)
+    model = _build_structured_model(settings, model_name=settings.llm_model_generation)
+    evaluation_model = _build_structured_model(settings, model_name=settings.llm_model_generation)
     workflow_kwargs = {
         "retriever": retriever,
         "selector": selector,
@@ -216,25 +207,35 @@ def build_idea_chat_workflow(
     return IdeaChatWorkflow(**workflow_kwargs)
 
 
-def _build_structured_model(settings: Settings):
-    model = OllamaOpenAIChatModel.from_settings(settings)
-    if not settings.ollama_cache_enabled:
+def _build_structured_model(settings: Settings, *, model_name: str):
+    model = OpenAIChatModel.from_settings(settings, model_name=model_name)
+    if not settings.llm_cache_enabled:
         return model
-    # 结构化输出缓存键包含模型配置和 prompt/schema；Langfuse metadata 不影响模型输出，不参与 hash。
+    # 缓存键必须包含实际模型名与端点：抽取/生成使用不同档位，不能互相复用缓存。
     return CachedStructuredJsonModel(
         model,
-        cache_dir=settings.ollama_cache_dir,
+        cache_dir=settings.llm_cache_dir,
         cache_identity={
-            "model": settings.ollama_model,
-            "think_mode": settings.ollama_think_mode,
+            "model": model_name,
+            "base_url": settings.llm_base_url,
+            "think_mode": settings.llm_think_mode,
             "temperature": 1.0,
         },
     )
 
 
+def _build_embedder(settings: Settings) -> OpenAIEmbeddingModel:
+    return OpenAIEmbeddingModel(
+        base_url=settings.resolved_embed_base_url,
+        api_key=settings.resolved_embed_api_key,
+        model_name=settings.embed_model,
+        timeout=settings.llm_timeout,
+    )
+
+
 def build_accepted_paper_benchmark_workflow(settings: Settings) -> AcceptedPaperBenchmarkWorkflow:
-    conversion_model = _build_structured_model(settings)
-    evaluation_model = _build_structured_model(settings)
+    conversion_model = _build_structured_model(settings, model_name=settings.llm_model_generation)
+    evaluation_model = _build_structured_model(settings, model_name=settings.llm_model_generation)
     openalex_api_keys = [key.strip() for key in settings.openalex_api_keys.split(",") if key.strip()]
     full_text_provider = FullTextProvider(
         output_dir=Path(settings.full_text_output_dir) / settings.neo4j_database / "benchmark",
@@ -260,7 +261,7 @@ def build_accepted_paper_benchmark_workflow(settings: Settings) -> AcceptedPaper
 
 
 def build_local_paper_folder_workflow(settings: Settings) -> MvpGraphBuildWorkflow:
-    model = _build_structured_model(settings)
+    model = _build_structured_model(settings, model_name=settings.llm_model_extraction)
     extractor = PaperExtractor(model, prompt_template=load_extract_prompt_template())
     if settings.extract_entities_enabled:
         extractor = _build_chunked_paper_extractor(extractor, settings)
@@ -279,15 +280,10 @@ def build_local_paper_folder_workflow(settings: Settings) -> MvpGraphBuildWorkfl
     resolver = None
     relation_resolver = None
     if settings.entity_resolution_enabled and settings.extract_entities_enabled:
-        from src.models.ollama_embeddings import OllamaEmbeddingModel
         from src.retrieval.embedding_cache import PaperEmbeddingCache
         from src.knowledge.entity_resolver import EntityResolutionService
         from src.knowledge.relation_resolver import RelationResolutionService
-        embedder = OllamaEmbeddingModel(
-            base_url=settings.ollama_base_url,
-            model_name=settings.ollama_embed_model,
-            timeout=settings.ollama_timeout,
-        )
+        embedder = _build_embedder(settings)
         embedding_cache = PaperEmbeddingCache(settings.paper_embedding_cache_dir)
         resolver = EntityResolutionService(
             model=model,
@@ -314,7 +310,7 @@ def build_local_paper_folder_workflow(settings: Settings) -> MvpGraphBuildWorkfl
 
 
 def build_entity_extraction_preview_workflow(settings: Settings) -> EntityExtractionPreviewWorkflow:
-    model = _build_structured_model(settings)
+    model = _build_structured_model(settings, model_name=settings.llm_model_extraction)
     extractor = PaperExtractor(model, prompt_template=load_extract_prompt_template())
     return EntityExtractionPreviewWorkflow(
         extractor,

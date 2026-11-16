@@ -15,13 +15,18 @@ class Settings(BaseSettings):
     openalex_works_filter: str = Field(default="", validation_alias="OPENALEX_WORKS_FILTER")
     openalex_api_keys: str = Field(default="", validation_alias="OPENALEX_API_KEYS")
     openalex_api_key_cooldown_seconds: int = Field(default=300, validation_alias="OPENALEX_API_KEY_COOLDOWN_SECONDS")
-    ollama_base_url: str = Field(validation_alias="OLLAMA_BASE_URL")
-    ollama_model: str = Field(validation_alias="OLLAMA_MODEL")
-    ollama_embed_model: str = Field(validation_alias="OLLAMA_EMBED_MODEL")
-    ollama_timeout: float = Field(validation_alias="OLLAMA_TIMEOUT")
-    ollama_think_mode: str = Field(validation_alias="OLLAMA_THINK_MODE")
-    ollama_cache_enabled: bool = Field(default=False, validation_alias="OLLAMA_CACHE_ENABLED")
-    ollama_cache_dir: str = Field(default=".cache/model_responses", validation_alias="OLLAMA_CACHE_DIR")
+    llm_base_url: str = Field(validation_alias="LLM_BASE_URL")
+    llm_api_key: str = Field(default="", validation_alias="LLM_API_KEY")
+    llm_timeout: float = Field(validation_alias="LLM_TIMEOUT")
+    llm_think_mode: str = Field(default="", validation_alias="LLM_THINK_MODE")
+    # 抽取与生成共用同一端点，但模型档位不同：抽取量大用便宜模型，生成追求质量。
+    llm_model_extraction: str = Field(validation_alias="LLM_MODEL_EXTRACTION")
+    llm_model_generation: str = Field(validation_alias="LLM_MODEL_GENERATION")
+    llm_cache_enabled: bool = Field(default=False, validation_alias="LLM_CACHE_ENABLED")
+    llm_cache_dir: str = Field(default=".cache/model_responses", validation_alias="LLM_CACHE_DIR")
+    embed_base_url: str = Field(default="", validation_alias="EMBED_BASE_URL")
+    embed_api_key: str = Field(default="", validation_alias="EMBED_API_KEY")
+    embed_model: str = Field(validation_alias="EMBED_MODEL")
     langfuse_public_key: str = Field(default="", validation_alias="LANGFUSE_PUBLIC_KEY")
     langfuse_secret_key: str = Field(default="", validation_alias="LANGFUSE_SECRET_KEY")
     langfuse_host: str = Field(default="https://cloud.langfuse.com", validation_alias="LANGFUSE_HOST")
@@ -77,3 +82,12 @@ class Settings(BaseSettings):
         if self.chunk_overlap_tokens >= self.chunk_max_tokens:
             raise ValueError("CHUNK_OVERLAP_TOKENS must be less than CHUNK_MAX_TOKENS")
         return self
+
+    @property
+    def resolved_embed_base_url(self) -> str:
+        # 同厂商（如百炼）只需配 LLM_*，EMBED_BASE_URL 留空即复用。
+        return self.embed_base_url.strip() or self.llm_base_url
+
+    @property
+    def resolved_embed_api_key(self) -> str:
+        return self.embed_api_key.strip() or self.llm_api_key

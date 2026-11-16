@@ -382,8 +382,8 @@ Graphistry server.
 - when `--seed-paper-id` is provided, `chat-idea` loads that exact `Paper.id`
   from Neo4j as the selected paper and continues from agent generation, without
   running query understanding, embedding retrieval, or paper selection
-- `chat-idea` uses Ollama's OpenAI-compatible chat completions API for model
-  calls and graph-tool `message.tool_calls`.
+- `chat-idea` uses the configured OpenAI-compatible chat completions API for
+  model calls and graph-tool `message.tool_calls`.
 - when the graph-tool loop stops returning tool calls, `chat-idea` first tries
   to parse that assistant response directly as `IdeaOutput` JSON and only falls
   back to a separate `final_idea_generation` structured call when the content
@@ -404,7 +404,7 @@ Graphistry server.
   also records `agent_generation_round_N_result` observations containing the
   returned `content`, `reasoning`, `finish_reason`, and normalized
   `{input, output, total}` usage
-- when the Ollama model exposes `message.thinking`, `chat-idea` prints the final
+- when the model exposes `message.thinking`, `chat-idea` prints the final
   idea-generation thinking trace for debugging
 - prompt templates for query understanding, paper-to-idea conversion, idea
   agent behavior, entity extraction, and idea evaluation live as Python modules

@@ -69,8 +69,8 @@
   improved idea. Do not reuse previous raw OpenAI message history.
 - The evaluator receives only generated `idea_output`, never the user query,
   selected paper, graph context, or hidden retrieval state.
-- `agent_generation` uses Ollama's OpenAI-compatible `/v1/chat/completions`
-  endpoint with real `message.tool_calls`. Keep assistant tool calls and graph
+- `agent_generation` uses the configured OpenAI-compatible `/v1/chat/completions`
+  endpoint (DashScope/Qwen by default) with real `message.tool_calls`. Keep assistant tool calls and graph
   tool results in one OpenAI message history; do not reintroduce JSON fallback
   protocols such as `{"tool_calls":[]}`.
 - Graph tool loops are capped at 10 action rounds. Round 0 must call
@@ -92,7 +92,7 @@
   token usage when credentials are set. Graph tool execution remains a separate
   tool observation. Round debug observations use
   `agent_generation_round_N_result`.
-- Final idea generation may include Ollama `message.thinking` as
+- Final idea generation may include the model's `message.thinking` as
   `idea_thinking` for debugging when the selected model exposes it.
 - `get_node_neighborhood.node_types` must use only `Paper` or concrete semantic
   entity labels such as `Concept`, `Domain`, `Problem`, `Method`, `Scenario`,
@@ -140,7 +140,7 @@
   output schemas. Keep field/format schemas in code, not duplicated in prompt
   text.
 - Entity and relation resolution also use `structured_json` through the shared
-  structured model wrapper, so `OLLAMA_CACHE_ENABLED=true` caches resolver LLM
+  structured model wrapper, so `LLM_CACHE_ENABLED=true` caches resolver LLM
   calls as well as extraction calls.
 - Entity outputs must use exact fields `entity_id`, `entity_type`, and
   `description`. Relation outputs must use exact schema fields, including
@@ -243,7 +243,7 @@
   `FULL_TEXT_OUTPUT_DIR`, `PDF_HYBRID_URL`, `PDF_HYBRID_BACKEND`,
   `PDF_HYBRID_MODE`.
 - Agent/model/cache: `AGENT_RETRIEVAL_TOP_K`, `CHAT_IDEA_ARCHIVE_DIR`,
-  `GRAPH_MULTIHOP_DEPTH`, `GRAPH_REACT_WIDTH`, `OLLAMA_*`. Chunk-vector
+  `GRAPH_MULTIHOP_DEPTH`, `GRAPH_REACT_WIDTH`, `LLM_*`, `EMBED_*`. Chunk-vector
   retrieval uses `CHUNK_TOKENIZER_MODEL_PATH`,
   `CHUNK_TOKENIZER_LOCAL_FILES_ONLY`, `CHUNK_MIN_TOKENS`,
   `CHUNK_MAX_TOKENS`, and `CHUNK_OVERLAP_TOKENS` for tokenizer-aligned

@@ -1515,7 +1515,7 @@ def test_improvement_round_includes_previous_graph_context_and_trace():
     assert result["tool_trace"][0]["tool_calls"][0]["arguments"]["node_id"] == "Graph-guided discovery"
 
 
-def test_build_idea_chat_workflow_wires_openai_ollama_model(monkeypatch, tmp_path):
+def test_build_idea_chat_workflow_wires_openai_chat_model(monkeypatch, tmp_path):
     from src.app import bootstrap
     from src.config.settings import Settings
 
@@ -1533,9 +1533,10 @@ def test_build_idea_chat_workflow_wires_openai_ollama_model(monkeypatch, tmp_pat
             return {"repository": "instance"}
 
     class FakeEmbeddingModel:
-        def __init__(self, base_url: str, model_name: str, timeout: float) -> None:
+        def __init__(self, *, base_url: str, api_key: str, model_name: str, timeout: float) -> None:
             calls["embedder"] = {
                 "base_url": base_url,
+                "api_key": api_key,
                 "model_name": model_name,
                 "timeout": timeout,
             }
@@ -1607,14 +1608,14 @@ def test_build_idea_chat_workflow_wires_openai_ollama_model(monkeypatch, tmp_pat
         def __init__(self) -> None:
             calls["selector"] = True
 
-    class FakeOllamaOpenAIChatModel:
+    class FakeOpenAIChatModel:
         @classmethod
-        def from_settings(cls, settings):
+        def from_settings(cls, settings, *, model_name):
             calls["model"] = {
-                "base_url": settings.ollama_base_url,
-                "model": settings.ollama_model,
-                "think_mode": settings.ollama_think_mode,
-                "timeout": settings.ollama_timeout,
+                "base_url": settings.llm_base_url,
+                "model": model_name,
+                "think_mode": settings.llm_think_mode,
+                "timeout": settings.llm_timeout,
             }
             return cls()
 
@@ -1649,7 +1650,7 @@ def test_build_idea_chat_workflow_wires_openai_ollama_model(monkeypatch, tmp_pat
             }
 
     monkeypatch.setattr(bootstrap, "Neo4jGraphRepository", FakeRepository)
-    monkeypatch.setattr(bootstrap, "OllamaEmbeddingModel", FakeEmbeddingModel)
+    monkeypatch.setattr(bootstrap, "OpenAIEmbeddingModel", FakeEmbeddingModel)
     monkeypatch.setattr(bootstrap, "build_chroma_client", fake_build_chroma_client)
     monkeypatch.setattr(bootstrap, "ChromaVectorIndex", FakeChromaVectorIndex)
     monkeypatch.setattr(bootstrap, "HuggingFaceChunkTokenizer", FakeHuggingFaceChunkTokenizer)
@@ -1658,16 +1659,18 @@ def test_build_idea_chat_workflow_wires_openai_ollama_model(monkeypatch, tmp_pat
     monkeypatch.setattr(bootstrap, "ChromaChunkRetriever", FakeChunkRetriever)
     monkeypatch.setattr(bootstrap, "VectorFallbackGraphContextProvider", FakeVectorFallbackGraphContextProvider)
     monkeypatch.setattr(bootstrap, "TopScorePaperSelector", FakeSelector)
-    monkeypatch.setattr(bootstrap, "OllamaOpenAIChatModel", FakeOllamaOpenAIChatModel)
+    monkeypatch.setattr(bootstrap, "OpenAIChatModel", FakeOpenAIChatModel)
     monkeypatch.setattr(bootstrap, "IdeaChatWorkflow", FakeWorkflow)
 
     settings = Settings(
         OPENALEX_BASE_URL="https://api.openalex.org",
-        OLLAMA_BASE_URL="http://127.0.0.1:11434",
-        OLLAMA_MODEL="qwen2.5:7b",
-        OLLAMA_EMBED_MODEL="nomic-embed-text",
-        OLLAMA_TIMEOUT=42.0,
-        OLLAMA_THINK_MODE="low",
+        LLM_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        LLM_API_KEY="sk-test",
+        LLM_MODEL_EXTRACTION="qwen3.7-flash",
+        LLM_MODEL_GENERATION="qwen3.7-plus",
+        EMBED_MODEL="text-embedding-v4",
+        LLM_TIMEOUT=42.0,
+        LLM_THINK_MODE="low",
         AGENT_RETRIEVAL_TOP_K=7,
         PAPER_EMBEDDING_CACHE_DIR=str(tmp_path / "embeddings"),
         EMBEDDING_WORKER_COUNT=6,
@@ -1686,7 +1689,8 @@ def test_build_idea_chat_workflow_wires_openai_ollama_model(monkeypatch, tmp_pat
 
     assert isinstance(workflow, FakeWorkflow)
     assert calls["repository"]["database"] == "idea"
-    assert calls["embedder"]["model_name"] == "nomic-embed-text"
+    assert calls["embedder"]["model_name"] == "text-embedding-v4"
+    assert calls["embedder"]["api_key"] == "sk-test"
     assert calls["chroma_client_database"] == "idea"
     assert calls["vector_index"]["client"] == {"chroma": "client"}
     assert calls["vector_index"]["database_name"] == "idea"
@@ -1704,8 +1708,8 @@ def test_build_idea_chat_workflow_wires_openai_ollama_model(monkeypatch, tmp_pat
     assert calls["graph_context_provider"]["graph_context_provider"] == {"repository": "instance"}
     assert isinstance(calls["graph_context_provider"]["entity_retriever"], FakeEntityRetriever)
     assert calls["model"] == {
-        "base_url": "http://127.0.0.1:11434",
-        "model": "qwen2.5:7b",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "model": "qwen3.7-plus",
         "think_mode": "low",
         "timeout": 42.0,
     }
