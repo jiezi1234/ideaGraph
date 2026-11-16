@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     citation_seed_min_cited_by_count: int | None = Field(default=None, validation_alias="CITATION_SEED_MIN_CITED_BY_COUNT")
     citation_seed_min_publication_year: int = Field(default=2021, validation_alias="CITATION_SEED_MIN_PUBLICATION_YEAR")
     citation_max_total_papers: int = Field(default=5000, validation_alias="CITATION_MAX_TOTAL_PAPERS")
+    citation_seed_fetch_all: bool = Field(default=True, validation_alias="CITATION_SEED_FETCH_ALL")
     full_text_extraction_enabled: bool = Field(default=False, validation_alias="FULL_TEXT_EXTRACTION_ENABLED")
     full_text_output_dir: str = Field(default="data", validation_alias="FULL_TEXT_OUTPUT_DIR")
     pdf_hybrid_url: str = Field(default="http://127.0.0.1:15002", validation_alias="PDF_HYBRID_URL")

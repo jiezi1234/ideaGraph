@@ -1,0 +1,46 @@
+name: ideagraph
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    ports:
+      - "127.0.0.1:8088:8080"
+    volumes:
+      - ../exports:/app/exports
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../.cache:/app/.cache
+    environment:
+      HF_HOME: /app/.cache/huggingface
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    mem_limit: 1800m
+    networks:
+      - default
+      - proxy
+  neo4j:
+    image: neo4j:5-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 384m
+      NEO4J_server_memory_pagecache_size: 128m
+    volumes:
+      - neo4j_data:/data
+    mem_limit: 850m
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7474"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+volumes:
+  neo4j_data:
+networks:
+  proxy:
+    external: true
+    name: backend_default

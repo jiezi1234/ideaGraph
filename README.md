@@ -8,6 +8,11 @@ ideas.
 
 ## Quick Start
 
+For the browser-based research workspace (paper discovery, idea generation,
+experiment plans, task history and JSON export), see
+[Web deployment](docs/web-deployment.md). The Web API calls the existing workflow
+services directly; the CLI below remains available for maintenance.
+
 1. Install `uv` from https://docs.astral.sh/uv/getting-started/installation/.
 2. From the project root, install dependencies with `uv sync`.
 3. Copy `.env.example` to `.env` and fill in your local values.

@@ -127,6 +127,7 @@ def build_mvp_workflow(settings: Settings) -> MvpGraphBuildWorkflow:
         citation_seed_min_cited_by_count=settings.citation_seed_min_cited_by_count,
         citation_seed_min_publication_year=settings.citation_seed_min_publication_year,
         citation_max_total_papers=settings.citation_max_total_papers,
+        citation_seed_fetch_all=settings.citation_seed_fetch_all,
         full_text_provider=full_text_provider,
         paper_abstract_extractor=abstract_extractor,
         resolver=resolver,

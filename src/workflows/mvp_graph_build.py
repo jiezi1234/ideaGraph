@@ -30,6 +30,7 @@ class MvpGraphBuildWorkflow:
         local_paper_output_dir: str | Path | None = None,
         resolver=None,
         relation_resolver=None,
+        citation_seed_fetch_all: bool = True,
     ) -> None:
         self._paper_service = paper_service
         self._extractor = extractor
@@ -41,6 +42,7 @@ class MvpGraphBuildWorkflow:
         self._citation_seed_min_cited_by_count = citation_seed_min_cited_by_count
         self._citation_seed_min_publication_year = citation_seed_min_publication_year
         self._citation_max_total_papers = citation_max_total_papers
+        self._citation_seed_fetch_all = citation_seed_fetch_all
         self._full_text_provider = full_text_provider
         self._pdf_markdown_extractor = pdf_markdown_extractor
         self._paper_abstract_extractor = paper_abstract_extractor
@@ -408,7 +410,8 @@ class MvpGraphBuildWorkflow:
                 keyword=keyword,
                 max_seed_papers=max_seed_papers,
                 require_references=require_references,
-                fetch_all=True,
+                # 网页交互可限制种子数量，离线批量建库默认仍扫描全部候选。
+                fetch_all=self._citation_seed_fetch_all,
                 min_cited_by_count=self._citation_seed_min_cited_by_count,
                 min_publication_year=self._citation_seed_min_publication_year,
             )

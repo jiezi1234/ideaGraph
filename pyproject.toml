@@ -5,6 +5,8 @@ description = "IdeaGraph MVP"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
     "chromadb==1.5.9",
     "graphistry>=0.56.1",
     "httpx[socks]==0.28.1",
