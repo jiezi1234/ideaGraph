@@ -15,7 +15,21 @@ docker compose --env-file .env -f deploy/compose.yml exec web python3 -m pytest 
 
 Dockerfile 使用 CPU 版本 PyTorch，禁用 hybrid 额外依赖。2 核 4GB 推荐摘要建库、15 篇文献上限、抽取与 embedding 并发均为 1。全文解析应在资源充足后单独配置。
 
-Compose 的 `proxy` 网络为本次服务器已有的 `backend_default`。其他服务器应替换该网络，或移除 proxy 网络并使用宿主机反向代理转发到 `127.0.0.1:8088`。数据库不暴露公网端口。
+Compose 的 `proxy` 网络为本次服务器已有的 `backend_default`。其他服务器应替换该网络，或移除 proxy 网络并使用宿主机反向代理转发到 `127.0.0.1:8088`。
+
+Neo4j 的 `7474`（Browser）和 `7687`（Bolt）在 compose 中映射到宿主机；如需公网访问，还要在云安全组同时放行这两个端口，并用 `NEO4J_server_default__advertised__address` 指定公网地址，否则 `neo4j://` 路由表会返回容器内地址导致外部客户端连不上。不需要公网访问时，把端口改回 `127.0.0.1:7474:7474` 即可。
+
+## 页面与接口
+
+- `/`：两个入口卡片（建立文献图谱 / 生成研究想法）
+- `/build`：建图任务，完成后展示 Markdown 报告，并自动加载图谱预览
+- `/idea`：选题任务，展示问题—方法—实验计划、评审意见与改进对比
+- `/graph`：只读图谱浏览，支持搜索节点、按类型着色、拖拽缩放
+- `POST /api/tasks`、`GET /api/tasks/{id}`：任务提交与查询（Bearer 口令）
+- `GET /api/graph`：返回论文与实体节点、关系边，供前端渲染（Bearer 口令）
+- `GET /api/tasks/{id}/report.md`：下载该任务的 Markdown 报告（Bearer 口令）
+
+报告同时在 `exports/reports/{task_id}.md` 落盘，结果里也保留 `report_markdown` 字段。前端用本地 vendored 的 marked + DOMPurify 渲染，避免依赖外部 CDN。
 
 ## HTTPS 子路径
 
@@ -32,6 +46,6 @@ handle_path /research/* {
 
 ## 数据与运维
 
-任务记录：`exports/web/tasks.sqlite3`；科研归档：`exports/chat_idea_runs/`；日志：`logs/`；向量缓存：`.cache/`。Neo4j 使用命名 volume。备份时需同时保留数据库与上述目录。访问口令只保存在浏览器 sessionStorage，关闭会话后需重新输入。
+任务记录：`exports/web/tasks.sqlite3`；Markdown 报告：`exports/reports/`；科研归档：`exports/chat_idea_runs/`；日志：`logs/`；向量缓存：`.cache/`。Neo4j 使用命名 volume。备份时需同时保留数据库与上述目录。访问口令只保存在浏览器 sessionStorage，关闭会话后需重新输入。
 
 `/health` 仅表示 Web 进程存活，不代表模型端点、OpenAlex 或文献库已就绪。失败详情留在服务器日志中，前端只返回不含凭据的提示。

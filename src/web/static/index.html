@@ -1,4 +1,139 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>IdeaGraph · 科研工作台</title><link rel="stylesheet" href="static/style.css"></head>
-<body><aside><a class="brand" href="./">◈ IdeaGraph<span>RESEARCH COPILOT</span></a><div class="nav active">◉ 科研工作台</div><div class="side-label">最近的研究任务</div><div id="history"></div><div class="foot">从文献出发，让想法有迹可循。<br>StudyHack · Research workspace</div></aside><main><header><span>工作空间 / 科研选题</span><button id="access" class="quiet">访问设置</button></header><section class="intro"><div class="eyebrow">CONNECT EVIDENCE. CREATE IDEAS.</div><h1>让下一个研究想法，<br><em>从这里开始。</em></h1><p>连接论文中的问题与方法，探索有依据的研究方向，规划下一步实验。</p></section><div class="workspace"><section class="card input"><div class="card-title"><span class="step">01</span><h2>定义研究任务</h2></div><form id="research"><label>工作模式<select name="kind"><option value="idea">科研选题与实验规划</option><option value="build">建立文献库 · OpenAlex 检索</option></select></label><label>你想探索什么？<textarea name="query" required minlength="3" maxlength="6000" placeholder="例如：如何提高动态客流下公交调度方法的鲁棒性？"></textarea></label><label>起点论文 ID <small>选填 · 使用库中已有 Paper.id</small><input name="seed_paper_id" maxlength="300" placeholder="留空则从文献库检索相关论文"></label><label>研究条件 <small>选填</small><textarea name="constraints" maxlength="2000" class="short" placeholder="例如：四周时间、单张显卡、只使用公开数据集"></textarea></label><label>建库种子论文数量 <small>仅建库模式生效</small><input type="number" name="max_seed_papers" value="3" min="1" max="10"></label><p class="hint">首次使用请先建立文献库。建库与科研任务在后台串行运行，关闭页面不会取消任务。</p><button class="primary" id="submit">开始研究 <span>↗</span></button><p id="message" role="status"></p></form></section><section class="card output"><div class="card-title"><span class="step">02</span><h2>研究方案</h2><span id="status" class="badge">等待开始</span></div><div id="result"><div class="empty"><div class="orb">✧</div><h3>一个好问题，是研究的起点</h3><p>创建任务后，这里将呈现研究问题、方法、实验计划和图谱探索记录。</p><div class="flow">文献检索 → 图谱探索 → 方案生成 → 评价改进</div></div></div><button id="download" class="quiet" hidden>↓ 导出研究记录 JSON</button></section></div><footer>AI 生成的研究假设需要核实与实验验证。图谱关联不代表创新性已经得到证明。</footer></main><dialog id="login"><form method="dialog"><h2>进入科研工作台</h2><p>请输入服务器的工作台访问口令，不是模型 API Key。</p><input id="token" type="password" autocomplete="off" required placeholder="工作台访问口令"><button class="primary">保存并进入</button></form></dialog><script src="static/app.js"></script></body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IdeaGraph · 科研工作台</title>
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<aside>
+  <a class="brand" href="./">◈ IdeaGraph<span>RESEARCH COPILOT</span></a>
+  <a class="nav" data-nav="build" href="./build">◈ 建立文献图谱</a>
+  <a class="nav" data-nav="idea" href="./idea">✦ 生成研究想法</a>
+  <a class="nav" data-nav="graph" href="./graph">◎ 图谱浏览</a>
+  <div class="side-label">最近的研究任务</div>
+  <div id="history"></div>
+  <div class="foot">从文献出发，让想法有迹可循。<br>StudyHack · Research workspace</div>
+</aside>
+<main>
+  <header><span id="crumb">工作空间</span><button id="access" class="quiet">访问设置</button></header>
 
+  <section id="view-landing">
+    <div class="intro">
+      <div class="eyebrow">CONNECT EVIDENCE. CREATE IDEAS.</div>
+      <h1>从文献图谱，<br><em>走到研究想法。</em></h1>
+      <p>先建立论文引用与语义实体图谱，再让 Agent 沿着图谱探索，生成有依据的研究方案。</p>
+    </div>
+    <div class="entries">
+      <a class="entry" href="./build">
+        <span class="entry-tag">STEP 01</span>
+        <h2>建立文献图谱</h2>
+        <p>按关键词检索 OpenAlex，写入论文与引用关系，抽取问题、方法、概念等实体，实时查看图谱。</p>
+        <span class="entry-go">进入建图 →</span>
+      </a>
+      <a class="entry" href="./idea">
+        <span class="entry-tag">STEP 02</span>
+        <h2>生成研究想法</h2>
+        <p>基于已有图谱，由工具调用 Agent 多轮探索，产出问题—方法—实验计划，并给出评审与改进对比。</p>
+        <span class="entry-go">进入生成 →</span>
+      </a>
+    </div>
+  </section>
+
+  <section id="view-build" hidden>
+    <div class="workspace">
+      <section class="card input">
+        <div class="card-title"><span class="step">01</span><h2>建立文献图谱</h2></div>
+        <form id="build-form">
+          <label>检索关键词
+            <textarea name="query" required minlength="3" maxlength="6000" placeholder="例如：graph neural network traffic prediction"></textarea>
+          </label>
+          <label>种子论文数量 <small>1–10</small>
+            <input type="number" name="max_seed_papers" value="3" min="1" max="10">
+          </label>
+          <p class="hint">建图会检索 OpenAlex、写入论文与引用关系，并抽取实体和实体关系。首次构建通常需要几分钟。</p>
+          <button class="primary" id="build-submit">开始建图 <span>↗</span></button>
+          <p id="build-message" role="status"></p>
+        </form>
+      </section>
+      <section class="card output">
+        <div class="card-title"><span class="step">02</span><h2>建图报告</h2><span id="build-status" class="badge">等待开始</span></div>
+        <article id="build-result" class="md">
+          <div class="empty"><div class="orb">◈</div><h3>先定义要建图的方向</h3><p>输入关键词后，这里会呈现建图统计，并在下方展示写入的论文引用图与实体关系。</p></div>
+        </article>
+        <div class="actions">
+          <button id="build-download" class="quiet" hidden>↓ 下载报告 .md</button>
+          <button id="build-graph" class="quiet" hidden>◎ 刷新图谱</button>
+        </div>
+      </section>
+    </div>
+    <section class="card graph-card" id="build-graph-card" hidden>
+      <div class="card-title"><span class="step">03</span><h2>本次写入的图谱</h2><span id="graph-stats-build" class="badge"></span></div>
+      <div class="graph-toolbar">
+        <input id="graph-search-build" placeholder="搜索论文或实体…">
+        <div class="legend" id="graph-legend-build"></div>
+      </div>
+      <div id="graph-canvas-build" class="graph-canvas"></div>
+    </section>
+  </section>
+
+  <section id="view-idea" hidden>
+    <div class="workspace">
+      <section class="card input">
+        <div class="card-title"><span class="step">01</span><h2>定义研究任务</h2></div>
+        <form id="idea-form">
+          <label>你想探索什么？
+            <textarea name="query" required minlength="3" maxlength="6000" placeholder="例如：如何提高动态客流下公交调度方法的鲁棒性？"></textarea>
+          </label>
+          <label>起点论文 ID <small>选填 · 使用库中已有 Paper.id</small>
+            <input name="seed_paper_id" maxlength="300" placeholder="留空则从文献库检索相关论文">
+          </label>
+          <label>研究条件 <small>选填</small>
+            <textarea name="constraints" maxlength="2000" class="short" placeholder="例如：四周时间、单张显卡、只使用公开数据集"></textarea>
+          </label>
+          <p class="hint">首次使用请先建立文献库。任务在后台串行运行，关闭页面不会取消。</p>
+          <button class="primary" id="idea-submit">开始研究 <span>↗</span></button>
+          <p id="idea-message" role="status"></p>
+        </form>
+      </section>
+      <section class="card output">
+        <div class="card-title"><span class="step">02</span><h2>研究方案</h2><span id="idea-status" class="badge">等待开始</span></div>
+        <article id="idea-result" class="md">
+          <div class="empty"><div class="orb">✧</div><h3>一个好问题，是研究的起点</h3><p>创建任务后，这里会以 Markdown 报告呈现研究问题、方法、实验计划、评审意见与改进对比。</p><div class="flow">文献检索 → 图谱探索 → 方案生成 → 评价改进</div></div>
+        </article>
+        <div class="actions"><button id="idea-download" class="quiet" hidden>↓ 下载报告 .md</button></div>
+      </section>
+    </div>
+  </section>
+
+  <section id="view-graph" hidden>
+    <section class="card">
+      <div class="card-title"><span class="step">◎</span><h2>图谱浏览</h2><span id="graph-stats-full" class="badge"></span></div>
+      <div class="graph-toolbar">
+        <input id="graph-search" placeholder="搜索论文或实体…">
+        <div class="legend" id="graph-legend"></div>
+      </div>
+      <div id="graph-canvas" class="graph-canvas tall"></div>
+      <p class="hint">拖拽节点调整位置，滚轮缩放；点击节点可查看完整名称。</p>
+    </section>
+  </section>
+
+  <footer>AI 生成的研究假设需要核实与实验验证。图谱关联不代表创新性已经得到证明。</footer>
+</main>
+
+<dialog id="login">
+  <form method="dialog">
+    <h2>进入科研工作台</h2>
+    <p>请输入服务器的工作台访问口令，不是模型 API Key。</p>
+    <input id="token" type="password" autocomplete="off" required placeholder="工作台访问口令">
+    <button class="primary">保存并进入</button>
+  </form>
+</dialog>
+
+<script src="static/vendor/marked.min.js"></script>
+<script src="static/vendor/purify.min.js"></script>
+<script src="static/vendor/vis-network.min.js"></script>
+<script src="static/app.js"></script>
+</body>
+</html>
