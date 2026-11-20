@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
+from src.observability.progress import progress_stage
 
 try:
     from langfuse import Langfuse
@@ -59,19 +60,20 @@ def langfuse_observation(
     metadata: Any = None,
     parent_observation=None,
 ):
-    if client is None:
-        yield None
-        return
-    observation_factory = client
-    if parent_observation is not None and hasattr(parent_observation, "start_as_current_observation"):
-        observation_factory = parent_observation
-    with observation_factory.start_as_current_observation(
-        name=name,
-        as_type=as_type,
-        input=serialize_for_langfuse(input),
-        metadata=serialize_for_langfuse(metadata),
-    ) as observation:
-        yield observation
+    with progress_stage(name, input=input):
+        if client is None:
+            yield None
+            return
+        observation_factory = client
+        if parent_observation is not None and hasattr(parent_observation, "start_as_current_observation"):
+            observation_factory = parent_observation
+        with observation_factory.start_as_current_observation(
+            name=name,
+            as_type=as_type,
+            input=serialize_for_langfuse(input),
+            metadata=serialize_for_langfuse(metadata),
+        ) as observation:
+            yield observation
 
 
 def serialize_for_langfuse(value: Any) -> Any:

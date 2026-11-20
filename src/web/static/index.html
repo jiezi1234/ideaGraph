@@ -1,139 +1,157 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-icon-sprite="static/icons.svg">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>IdeaGraph · 科研工作台</title>
-<link rel="stylesheet" href="static/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#19172d">
+  <title>IdeaGraph · 研究工作台</title>
+  <link rel="stylesheet" href="static/style.css">
+  <link rel="icon" href="static/brand.svg" type="image/svg+xml">
 </head>
 <body>
-<aside>
-  <a class="brand" href="./">◈ IdeaGraph<span>RESEARCH COPILOT</span></a>
-  <a class="nav" data-nav="build" href="./build">◈ 建立文献图谱</a>
-  <a class="nav" data-nav="idea" href="./idea">✦ 生成研究想法</a>
-  <a class="nav" data-nav="graph" href="./graph">◎ 图谱浏览</a>
-  <div class="side-label">最近的研究任务</div>
-  <div id="history"></div>
-  <div class="foot">从文献出发，让想法有迹可循。<br>StudyHack · Research workspace</div>
+<a class="skip" href="#content">跳至主要内容</a>
+<div id="menu-scrim" hidden></div>
+<aside class="sidebar" id="sidebar" aria-label="工作台导航">
+  <a class="brand" href="./"><img src="static/brand.svg" alt="" width="37" height="37"><span>IdeaGraph</span></a>
+  <button id="close-menu" class="icon-btn close-menu" aria-label="关闭导航"><i data-icon="close"></i></button>
+  <div class="nav-group">
+    <div class="side-label">工作空间</div>
+    <nav aria-label="工作空间">
+      <a data-nav="landing" href="./"><i data-icon="overview"></i>工作台概览</a>
+      <a data-nav="build" href="./build"><i data-icon="layers"></i>文献建图</a>
+      <a data-nav="graph" href="./graph"><i data-icon="network"></i>图谱探索</a>
+      <a data-nav="idea" href="./idea"><i data-icon="spark"></i>研究构思</a>
+    </nav>
+  </div>
+  <div class="nav-group task-nav">
+    <div class="side-label">研究记录</div>
+    <nav aria-label="研究记录"><a data-nav="records" href="./#records"><i data-icon="history"></i>最近任务</a></nav>
+  </div>
+  <button id="access" class="account">
+    <span class="account-icon"><i data-icon="key"></i></span>
+    <span><strong>工作台访问</strong><small id="access-state">配置访问口令</small></span>
+    <i data-icon="settings"></i>
+  </button>
 </aside>
-<main>
-  <header><span id="crumb">工作空间</span><button id="access" class="quiet">访问设置</button></header>
-
-  <section id="view-landing">
-    <div class="intro">
-      <div class="eyebrow">CONNECT EVIDENCE. CREATE IDEAS.</div>
-      <h1>从文献图谱，<br><em>走到研究想法。</em></h1>
-      <p>先建立论文引用与语义实体图谱，再让 Agent 沿着图谱探索，生成有依据的研究方案。</p>
-    </div>
-    <div class="entries">
-      <a class="entry" href="./build">
-        <span class="entry-tag">STEP 01</span>
-        <h2>建立文献图谱</h2>
-        <p>按关键词检索 OpenAlex，写入论文与引用关系，抽取问题、方法、概念等实体，实时查看图谱。</p>
-        <span class="entry-go">进入建图 →</span>
-      </a>
-      <a class="entry" href="./idea">
-        <span class="entry-tag">STEP 02</span>
-        <h2>生成研究想法</h2>
-        <p>基于已有图谱，由工具调用 Agent 多轮探索，产出问题—方法—实验计划，并给出评审与改进对比。</p>
-        <span class="entry-go">进入生成 →</span>
-      </a>
-    </div>
-  </section>
-
-  <section id="view-build" hidden>
-    <div class="workspace">
-      <section class="card input">
-        <div class="card-title"><span class="step">01</span><h2>建立文献图谱</h2></div>
-        <form id="build-form">
-          <label>检索关键词
-            <textarea name="query" required minlength="3" maxlength="6000" placeholder="例如：graph neural network traffic prediction"></textarea>
-          </label>
-          <label>种子论文数量 <small>1–10</small>
-            <input type="number" name="max_seed_papers" value="3" min="1" max="10">
-          </label>
-          <p class="hint">建图会检索 OpenAlex、写入论文与引用关系，并抽取实体和实体关系。首次构建通常需要几分钟。</p>
-          <button class="primary" id="build-submit">开始建图 <span>↗</span></button>
-          <p id="build-message" role="status"></p>
-        </form>
-      </section>
-      <section class="card output">
-        <div class="card-title"><span class="step">02</span><h2>建图报告</h2><span id="build-status" class="badge">等待开始</span></div>
-        <article id="build-result" class="md">
-          <div class="empty"><div class="orb">◈</div><h3>先定义要建图的方向</h3><p>输入关键词后，这里会呈现建图统计，并在下方展示写入的论文引用图与实体关系。</p></div>
-        </article>
-        <div class="actions">
-          <button id="build-download" class="quiet" hidden>↓ 下载报告 .md</button>
-          <button id="build-graph" class="quiet" hidden>◎ 刷新图谱</button>
+<div class="shell">
+  <header class="topbar">
+    <button class="icon-btn menu-btn" id="menu" aria-label="打开导航" aria-controls="sidebar" aria-expanded="false"><i data-icon="menu"></i></button>
+    <div class="breadcrumb"><i data-icon="workspace"></i><a href="./"><span class="wide-name">科研空间</span><span class="mobile-name">IdeaGraph</span></a><span>/</span><strong id="crumb">工作台概览</strong></div>
+    <time class="today" id="today"></time>
+  </header>
+  <main id="content" tabindex="-1">
+    <section id="view-landing">
+      <div class="page-heading"><h1>工作台概览</h1><p>管理文献图谱、探索论文关联，并跟进研究任务。</p></div>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-art" role="img" aria-label="论文、方法和概念的三维网络示意图"><canvas id="cover-graph" aria-hidden="true"></canvas><span class="figure-caption">拓扑结构示意</span></div>
+        <div class="hero-copy">
+          <div class="hero-kicker"><i data-icon="network"></i> 知识图谱研究空间</div>
+          <h2 id="hero-title">从文献证据，<br><em>到研究方案。</em></h2>
+          <p>连接论文、方法与问题，沿着图谱寻找研究方向。</p>
+          <div class="hero-actions"><a class="btn hero-primary" href="./build"><i data-icon="plus"></i>开始建图</a><a class="btn hero-secondary" href="./graph"><i data-icon="orbit"></i>探索图谱</a></div>
         </div>
       </section>
-    </div>
-    <section class="card graph-card" id="build-graph-card" hidden>
-      <div class="card-title"><span class="step">03</span><h2>本次写入的图谱</h2><span id="graph-stats-build" class="badge"></span></div>
-      <div class="graph-toolbar">
-        <input id="graph-search-build" placeholder="搜索论文或实体…">
-        <div class="legend" id="graph-legend-build"></div>
-      </div>
-      <div id="graph-canvas-build" class="graph-canvas"></div>
-    </section>
-  </section>
-
-  <section id="view-idea" hidden>
-    <div class="workspace">
-      <section class="card input">
-        <div class="card-title"><span class="step">01</span><h2>定义研究任务</h2></div>
-        <form id="idea-form">
-          <label>你想探索什么？
-            <textarea name="query" required minlength="3" maxlength="6000" placeholder="例如：如何提高动态客流下公交调度方法的鲁棒性？"></textarea>
-          </label>
-          <label>起点论文 ID <small>选填 · 使用库中已有 Paper.id</small>
-            <input name="seed_paper_id" maxlength="300" placeholder="留空则从文献库检索相关论文">
-          </label>
-          <label>研究条件 <small>选填</small>
-            <textarea name="constraints" maxlength="2000" class="short" placeholder="例如：四周时间、单张显卡、只使用公开数据集"></textarea>
-          </label>
-          <p class="hint">首次使用请先建立文献库。任务在后台串行运行，关闭页面不会取消。</p>
-          <button class="primary" id="idea-submit">开始研究 <span>↗</span></button>
-          <p id="idea-message" role="status"></p>
-        </form>
+      <section class="home-section" aria-labelledby="workflow-heading">
+        <div class="section-head"><h2 id="workflow-heading">研究流程</h2></div>
+        <div class="workflow-cards">
+          <a class="workflow-card violet" href="./build">
+            <div class="card-meta"><span class="tile-icon"><i data-icon="layers"></i></span><span class="tech">OpenAlex</span></div>
+            <h3>文献建图</h3><p>从关键词检索种子论文，扩展引用并抽取语义实体。</p>
+            <div class="card-foot"><span>配置建图任务</span><i data-icon="chevron"></i></div>
+          </a>
+          <a class="workflow-card teal" href="./graph">
+            <div class="card-meta"><span class="tile-icon"><i data-icon="network"></i></span><span class="tech">Neo4j</span></div>
+            <h3>图谱探索</h3><p>浏览论文引用与实体关系，定位研究的起点论文。</p>
+            <div class="card-foot"><span>打开图谱浏览器</span><i data-icon="chevron"></i></div>
+          </a>
+          <a class="workflow-card amber" href="./idea">
+            <div class="card-meta"><span class="tile-icon"><i data-icon="spark"></i></span><span class="tech">Graph Agent</span></div>
+            <h3>研究构思</h3><p>让 Agent 沿图谱取证，生成研究问题、方法与实验计划。</p>
+            <div class="card-foot"><span>定义研究问题</span><i data-icon="chevron"></i></div>
+          </a>
+        </div>
       </section>
-      <section class="card output">
-        <div class="card-title"><span class="step">02</span><h2>研究方案</h2><span id="idea-status" class="badge">等待开始</span></div>
-        <article id="idea-result" class="md">
-          <div class="empty"><div class="orb">✧</div><h3>一个好问题，是研究的起点</h3><p>创建任务后，这里会以 Markdown 报告呈现研究问题、方法、实验计划、评审意见与改进对比。</p><div class="flow">文献检索 → 图谱探索 → 方案生成 → 评价改进</div></div>
-        </article>
-        <div class="actions"><button id="idea-download" class="quiet" hidden>↓ 下载报告 .md</button></div>
+      <section class="home-section" id="records" tabindex="-1" aria-labelledby="records-heading">
+        <div class="section-head"><h2 id="records-heading">最近任务</h2><button class="quiet compact" id="history-refresh"><i data-icon="refresh"></i>刷新</button></div>
+        <div class="record-panel"><div class="record-header"><span>任务名称</span><span>类型</span><span>状态</span><span>创建时间</span></div><div id="history" aria-live="polite"></div></div>
       </section>
-    </div>
-  </section>
-
-  <section id="view-graph" hidden>
-    <section class="card">
-      <div class="card-title"><span class="step">◎</span><h2>图谱浏览</h2><span id="graph-stats-full" class="badge"></span></div>
-      <div class="graph-toolbar">
-        <input id="graph-search" placeholder="搜索论文或实体…">
-        <div class="legend" id="graph-legend"></div>
-      </div>
-      <div id="graph-canvas" class="graph-canvas tall"></div>
-      <p class="hint">拖拽节点调整位置，滚轮缩放；点击节点可查看完整名称。</p>
     </section>
+
+    <section id="view-build" hidden>
+      <div class="page-heading"><h1>文献建图</h1><p>检索 OpenAlex 论文，沿引用扩展，并将论文和语义实体写入图谱。</p></div>
+      <div class="workspace">
+        <section class="card input">
+          <div class="card-title violet"><span class="tile-icon"><i data-icon="layers"></i></span><h2>建图配置</h2></div>
+          <form id="build-form">
+            <label>检索关键词<textarea name="query" required minlength="3" maxlength="6000" placeholder="例如 graph neural networks for traffic prediction"></textarea></label>
+            <label>种子论文数量 <small>1–10 篇</small><input type="number" name="max_seed_papers" value="3" min="1" max="10" required></label>
+            <p class="hint">种子数量控制起点论文的上限，引用扩展会引入更多论文。</p>
+            <button class="primary" id="build-submit"><i data-icon="plus"></i>开始建图</button>
+            <p id="build-message" class="form-message" role="status"></p>
+          </form>
+        </section>
+        <section class="card output">
+          <div class="card-title"><i data-icon="report"></i><h2>建图报告</h2><span id="build-status" class="badge">等待开始</span></div>
+          <article id="build-result" class="md"><div class="empty"><span class="empty-icon"><i data-icon="layers"></i></span><h3>等待建图任务</h3><p>提交后可查看执行进度，以及论文、引用和实体关系的写入统计。</p></div></article>
+          <div class="actions" id="build-actions" hidden><a href="./idea" id="build-to-idea" class="btn primary"><i data-icon="spark"></i>继续研究构思</a><button id="build-download" class="quiet"><i data-icon="download"></i>下载报告</button></div>
+          <details class="trace-fold" id="build-trace" hidden><summary><i data-icon="activity"></i>执行过程与调用详情</summary></details>
+        </section>
+      </div>
+      <section id="build-graph-card" class="graph-card" hidden><h2 class="subheading">共享图谱预览</h2><div data-graph="build"></div></section>
+    </section>
+
+    <section id="view-graph" hidden>
+      <div class="page-heading"><h1>图谱探索</h1><p>沿论文引用与实体关系浏览文献库，选择一篇论文作为研究起点。</p></div>
+      <div data-graph="full"></div>
+    </section>
+
+    <section id="view-idea" hidden>
+      <div class="page-heading"><h1>研究构思</h1><p>从研究问题或图谱中的论文出发，生成可追溯的研究方案。</p></div>
+      <div class="workspace">
+        <section class="card input">
+          <div class="card-title amber"><span class="tile-icon"><i data-icon="spark"></i></span><h2>研究任务</h2></div>
+          <form id="idea-form">
+            <label>研究问题<textarea name="query" required minlength="3" maxlength="6000" placeholder="例如，如何提高动态客流下公交调度方法的鲁棒性？"></textarea></label>
+            <label>起点论文 ID <small>选填</small><input name="seed_paper_id" maxlength="300" placeholder="留空则自动检索相关论文"></label>
+            <label>研究条件 <small>选填</small><textarea name="constraints" maxlength="2000" class="short" placeholder="例如，四周时间、单张显卡、公开数据集"></textarea></label>
+            <button class="primary" id="idea-submit"><i data-icon="spark"></i>生成研究方案</button>
+            <p id="idea-message" class="form-message" role="status"></p>
+          </form>
+        </section>
+        <section class="card output">
+          <div class="card-title"><i data-icon="report"></i><h2>研究方案</h2><span id="idea-status" class="badge">等待开始</span></div>
+          <article id="idea-result" class="md"><div class="empty"><span class="empty-icon"><i data-icon="report"></i></span><h3>等待研究问题</h3><p>方案将呈现研究问题、方法设计和实验计划。启用评审时，还可查看反馈与改进对比。</p></div></article>
+          <div class="actions" id="idea-actions" hidden><button id="idea-download" class="quiet"><i data-icon="download"></i>下载报告</button></div>
+          <details class="trace-fold" id="idea-trace" hidden><summary><i data-icon="activity"></i>执行过程与调用详情</summary></details>
+        </section>
+      </div>
+    </section>
+  </main>
+</div>
+<template id="graph-template">
+  <section class="card graph-panel">
+    <div class="card-title teal"><span class="tile-icon"><i data-icon="network"></i></span><h2>图谱浏览器</h2><span class="graph-stats badge">当前视图</span></div>
+    <div class="graph-toolbar"><label class="search-field"><i data-icon="search"></i><input type="search" placeholder="搜索论文或实体" aria-label="搜索论文或实体"></label><button class="quiet graph-fit" disabled><i data-icon="fit"></i>适应画布</button><button class="icon-btn graph-refresh" aria-label="刷新图谱" title="刷新图谱"><i data-icon="refresh"></i></button></div>
+    <div class="graph-canvas"></div>
+    <div class="graph-selection" aria-live="polite"></div>
+    <div class="legend"></div>
   </section>
-
-  <footer>AI 生成的研究假设需要核实与实验验证。图谱关联不代表创新性已经得到证明。</footer>
-</main>
-
-<dialog id="login">
-  <form method="dialog">
-    <h2>进入科研工作台</h2>
-    <p>请输入服务器的工作台访问口令，不是模型 API Key。</p>
-    <input id="token" type="password" autocomplete="off" required placeholder="工作台访问口令">
-    <button class="primary">保存并进入</button>
+</template>
+<dialog id="login" aria-labelledby="login-title">
+  <form id="access-form">
+    <div class="dialog-head"><span class="tile-icon violet"><i data-icon="key"></i></span><button type="button" class="icon-btn" id="close-access" aria-label="关闭"><i data-icon="close"></i></button></div>
+    <h2 id="login-title">连接工作台</h2><p>输入服务器配置的工作台口令，即可访问共享文献库和研究任务。</p>
+    <label>访问口令<input id="token" type="password" autocomplete="off" required></label>
+    <p id="access-message" class="form-message" role="status"></p>
+    <button class="primary" id="connect">验证并连接</button>
   </form>
 </dialog>
-
 <script src="static/vendor/marked.min.js"></script>
 <script src="static/vendor/purify.min.js"></script>
 <script src="static/vendor/vis-network.min.js"></script>
+<script src="static/process-graph.js"></script>
+<script src="static/graph-browser.js"></script>
+<script src="static/cover.js"></script>
 <script src="static/app.js"></script>
 </body>
 </html>

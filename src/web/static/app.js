@@ -1,314 +1,407 @@
-const $ = s => document.querySelector(s);
+const $ = selector => document.querySelector(selector);
 const token = () => sessionStorage.getItem('access') || '';
+const VIEW_LABEL = { landing: '工作台概览', build: '文献建图', graph: '图谱探索', idea: '研究构思' };
+const STATUS_LABEL = { queued: '排队中', running: '运行中', completed: '已完成', failed: '失败' };
+const path = location.pathname.replace(/\/+$/, '');
+const routeMatch = path.match(/\/(build|idea|graph)$/);
+const view = routeMatch ? routeMatch[1] : 'landing';
+// 子路径部署时保留工作台前缀，任务链接可直接收藏或刷新。
+const BASE = routeMatch ? path.slice(0, -routeMatch[0].length) : path;
+const params = new URLSearchParams(location.search);
 
-// 静态资源与接口都以工作台根路径为基准：本地是 /，线上是 /research/。
-const BASE = (() => {
-  let path = location.pathname.replace(/\/+$/, '');
-  const matched = path.match(/\/(build|idea|graph)$/);
-  if (matched) path = path.slice(0, -matched[0].length);
-  return path;
-})();
+function route(name, query = {}) {
+  const suffix = new URLSearchParams(query).toString();
+  return BASE + '/' + (name === 'landing' ? '' : name) + (suffix ? '?' + suffix : '');
+}
 
-const VIEW_LABEL = { landing: '工作空间', build: '建立文献图谱', idea: '生成研究想法', graph: '图谱浏览' };
-const STATUS_LABEL = { queued: '排队中', running: '正在运行', completed: '已完成', failed: '未完成' };
-const GRAPH_TYPES = {
-  Paper: { label: '论文', color: '#315f46' },
-  Method: { label: '方法', color: '#2f6fb0' },
-  Concept: { label: '概念', color: '#b07d2f' },
-  Problem: { label: '问题', color: '#b04a4a' },
-  Scenario: { label: '场景', color: '#7a4ab0' },
-  Domain: { label: '领域', color: '#2f9e8a' },
-  Entity: { label: '实体', color: '#8a9a90' },
+const STAGES = {
+  prepare_workflow: '准备模型与检索索引', build_graph: '构建文献与语义图谱', research: '探索研究问题',
+  query_understanding: '理解研究问题', paper_retrieval: '检索相关论文', paper_selection: '选择起点论文',
+  seed_paper_selection: '加载指定论文', related_entity_retrieval: '寻找关联实体',
+  agent_generation: '探索图谱并构思方案', final_idea_generation: '生成研究方案',
+  idea_evaluation: '评审研究方案', idea_comparison: '对比改进结果',
+  'search:start': '开始发现论文与扩展引用', 'search:done': '论文与引用发现完成',
+  'paper:node_written': '论文节点已写入', 'paper:start': '开始抽取论文实体',
+  'paper:extract_done': '论文实体抽取完成', 'paper:write_done': '实体与关系已写入',
+  'paper:extract_error': '论文抽取失败，继续处理其他论文', 'paper:extract_skipped': '论文内容不足，跳过抽取',
+  'extract:skipped': '本次未启用实体抽取', 'citation:pending_unresolved': '部分引用等待端点论文',
 };
 
-const graphs = {};
-const activeTask = { build: null, idea: null };
-
-async function api(path, options = {}) {
-  const response = await fetch(BASE + path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + token(),
-      ...options.headers,
-    },
-  });
-  if (response.status === 401) {
-    if (!$('#login').open) $('#login').showModal();
-    throw new Error('请先输入工作台访问口令');
-  }
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : '请求未通过校验');
-  return data;
+function stageLabel(name) {
+  const round = String(name).match(/^(agent_generation|graph_tool_execution|idea_evaluation)_round_(\d+)(_result)?$/);
+  if (round) return ({ agent_generation: '构思与决策', graph_tool_execution: '执行图谱探索', idea_evaluation: '评审方案' }[round[1]]) +
+    ' · 第 ' + round[2] + ' 轮' + (round[3] ? '结果' : '');
+  return STAGES[name] || name;
 }
 
-function showError(id, error) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = error.message;
+function makeIcon(name) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'icon');
+  svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS(ns, 'use');
+  use.setAttribute('href', document.documentElement.dataset.iconSprite + '#' + name);
+  svg.append(use);
+  return svg;
 }
 
-function currentView() {
-  const matched = location.pathname.replace(/\/+$/, '').match(/\/(build|idea|graph)$/);
-  return matched ? matched[1] : 'landing';
+function setAccessState() {
+  $('#access-state').textContent = token() ? '已保存会话口令' : '配置访问口令';
 }
 
-function showView(view) {
-  for (const name of ['landing', 'build', 'idea', 'graph']) {
-    document.getElementById('view-' + name).hidden = name !== view;
-  }
-  document.querySelectorAll('[data-nav]').forEach(el => el.classList.toggle('active', el.dataset.nav === view));
-  $('#crumb').textContent = VIEW_LABEL[view] || '工作空间';
-}
-
-function renderMarkdown(target, markdown) {
-  const html = window.marked.parse(markdown || '', { gfm: true, breaks: true });
-  target.innerHTML = window.DOMPurify.sanitize(html);
-}
-
-async function history() {
-  const rows = await api('/api/tasks');
-  const box = $('#history');
-  box.replaceChildren();
-  for (const row of rows) {
-    const button = document.createElement('button');
-    button.className = 'history-item';
-    button.textContent = (row.payload.kind === 'build' ? '建图 · ' : '想法 · ') + row.payload.query;
-    const meta = document.createElement('small');
-    meta.textContent = STATUS_LABEL[row.status] + ' · ' + row.created;
-    button.append(meta);
-    button.onclick = () => openTask(row.payload.kind, row.id);
-    box.append(button);
-  }
-}
-
-function renderTask(view, row) {
-  const statusEl = $('#' + view + '-status');
-  const resultEl = $('#' + view + '-result');
-  const downloadEl = $('#' + view + '-download');
-  statusEl.textContent = STATUS_LABEL[row.status] || row.status;
-  downloadEl.hidden = row.status !== 'completed';
-
-  if (row.status === 'completed') {
-    const result = row.result || {};
-    activeTask[view] = row.id;
-    if (result.report_markdown) {
-      renderMarkdown(resultEl, result.report_markdown);
-    } else {
-      resultEl.innerHTML = '<p class="hint">该任务没有生成 Markdown 报告，以下为原始结果。</p><pre></pre>';
-      resultEl.querySelector('pre').textContent = JSON.stringify(result, null, 2);
-    }
-    if (view === 'build') {
-      $('#build-graph-card').hidden = false;
-      renderGraph('graph-canvas-build', 'graph-stats-build', 'graph-search-build', 'graph-legend-build');
-    }
-  } else if (row.status === 'failed') {
-    resultEl.innerHTML = '';
-    const p = document.createElement('p');
-    p.className = 'error';
-    p.textContent = row.error || '任务未完成';
-    resultEl.append(p);
-  } else {
-    resultEl.innerHTML = '<div class="empty"><div class="orb">◌</div><h3>正在处理中</h3><p>' +
-      (row.status === 'queued' ? '任务已进入队列。' : '正在检索文献或探索图谱，通常需要 5–10 分钟。') +
-      '</p></div>';
-  }
-}
-
-async function openTask(view, taskId) {
-  showView(view);
+async function api(endpoint, options = {}, credential = token()) {
+  let response;
   try {
-    const row = await api('/api/tasks/' + taskId);
-    renderTask(view, row);
-    if (row.status === 'queued' || row.status === 'running') follow(view, taskId);
-  } catch (error) {
-    showError(view + '-message', error);
+    response = await fetch(BASE + endpoint, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + credential },
+    });
+  } catch {
+    throw new Error('无法连接工作台服务，请检查网络后重试。');
   }
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error = new Error(typeof data.detail === 'string' ? data.detail : '服务暂时无法完成请求。');
+    error.status = response.status;
+    if (response.status === 401 && token() === credential) {
+      sessionStorage.removeItem('access');
+      setAccessState();
+    }
+    throw error;
+  }
+  return endpoint.endsWith('/report.md') ? response.blob() : response.json();
 }
 
-async function follow(view, taskId) {
-  let stop = false;
-  while (!stop) {
-    await new Promise(resolve => setTimeout(resolve, 3500));
+let afterAccess;
+let accessAttempt = 0;
+function openAccess(callback) {
+  accessAttempt++;
+  afterAccess = typeof callback === 'function' ? callback : null;
+  $('#access-message').textContent = '';
+  if (!$('#login').open) $('#login').showModal();
+  $('#token').focus();
+}
+
+function setMenu(open) {
+  document.body.classList.toggle('menu-open', open);
+  $('#menu').setAttribute('aria-expanded', String(open));
+  $('.shell').inert = open;
+  $('#menu-scrim').hidden = !open;
+  if (open) $('.sidebar a').focus();
+}
+
+function setupShell() {
+  for (const name of Object.keys(VIEW_LABEL)) $('#view-' + name).hidden = name !== view;
+  document.title = VIEW_LABEL[view] + ' · IdeaGraph';
+  const updateNav = () => {
+    const active = view === 'landing' && location.hash === '#records' ? 'records' : view;
+    $('#crumb').textContent = active === 'records' ? '最近任务' : VIEW_LABEL[view];
+    document.querySelectorAll('[data-nav]').forEach(link => {
+      link.classList.toggle('active', link.dataset.nav === active);
+      if (link.dataset.nav === active) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
+  };
+  updateNav();
+  window.addEventListener('hashchange', updateNav);
+  $('#menu').onclick = () => setMenu(true);
+  $('#close-menu').onclick = () => { setMenu(false); $('#menu').focus(); };
+  $('#menu-scrim').onclick = () => { setMenu(false); $('#menu').focus(); };
+  matchMedia('(min-width:861px)').addEventListener('change', event => { if (event.matches) setMenu(false); });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.body.classList.contains('menu-open')) {
+      setMenu(false);
+      $('#menu').focus();
+    }
+  });
+  $('.sidebar').addEventListener('click', event => { if (event.target.closest('a')) setMenu(false); });
+  $('#access').onclick = () => { setMenu(false); openAccess(); };
+  $('#close-access').onclick = () => $('#login').close();
+  $('#login').addEventListener('close', () => { $('#token').value = ''; afterAccess = null; });
+  $('#today').append(makeIcon('calendar'), document.createTextNode(
+    new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date())));
+  $('#access-form').onsubmit = async event => {
+    event.preventDefault();
+    const credential = $('#token').value;
+    const callback = afterAccess;
+    const attempt = accessAttempt;
+    $('#connect').disabled = true;
+    $('#access-message').textContent = '正在验证…';
     try {
-      const row = await api('/api/tasks/' + taskId);
-      renderTask(view, row);
-      stop = row.status === 'completed' || row.status === 'failed';
+      const rows = await api('/api/tasks', {}, credential);
+      // 验证期间关闭弹窗即取消本次继续操作，避免取消后仍提交研究任务。
+      if (!$('#login').open || attempt !== accessAttempt) return;
+      sessionStorage.setItem('access', credential);
+      setAccessState();
+      $('#login').close();
+      if (callback) callback();
+      else loadPage(rows);
+    } catch (error) { if (attempt === accessAttempt) $('#access-message').textContent = error.message; }
+    finally { $('#connect').disabled = false; }
+  };
+  setAccessState();
+}
+
+function listNotice(message, actionLabel, action) {
+  const line = document.createElement('div');
+  line.className = 'record-empty';
+  line.append(makeIcon('inbox'), document.createTextNode(message));
+  if (actionLabel) {
+    const button = document.createElement('button');
+    button.className = 'text-action';
+    button.textContent = actionLabel;
+    button.onclick = action;
+    line.append(button);
+  }
+  $('#history').replaceChildren(line);
+}
+
+function renderHistory(rows) {
+  if (!rows.length) {
+    listNotice('暂无研究任务。', '创建建图任务', () => { location.href = route('build'); });
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  for (const row of rows) {
+    const kind = row.payload.kind;
+    const link = document.createElement('a');
+    link.className = 'record-row';
+    link.href = route(kind, { task: row.id });
+    const title = document.createElement('strong');
+    title.className = 'record-name ' + (kind === 'idea' ? 'amber' : 'violet');
+    const name = document.createElement('span');
+    name.textContent = row.payload.query;
+    link.title = row.payload.query;
+    title.append(makeIcon(kind === 'idea' ? 'spark' : 'layers'), name);
+    const type = document.createElement('span');
+    type.className = 'record-type';
+    type.textContent = VIEW_LABEL[kind];
+    const status = document.createElement('span');
+    status.className = 'badge';
+    status.dataset.status = row.status;
+    status.textContent = STATUS_LABEL[row.status] || row.status;
+    const created = document.createElement('time');
+    created.className = 'record-time';
+    // SQLite 的 CURRENT_TIMESTAMP 是 UTC，展示时转换为浏览器所在时区。
+    const iso = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(row.created) ? row.created.replace(' ', 'T') + 'Z' : row.created;
+    const date = new Date(iso);
+    created.dateTime = iso;
+    created.textContent = Number.isNaN(date.getTime()) ? row.created : date.toLocaleString('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false });
+    link.append(title,type,status,created);
+    fragment.append(link);
+  }
+  $('#history').replaceChildren(fragment);
+}
+
+let historyRequest = 0;
+async function refreshHistory(rows) {
+  const request = ++historyRequest;
+  if (!token()) {
+    listNotice('连接工作台以查看最近的研究任务。', '连接工作台', openAccess);
+    return;
+  }
+  if (rows) { renderHistory(rows); return; }
+  listNotice('正在读取最近任务…');
+  try {
+    const records = await api('/api/tasks');
+    if (request === historyRequest) renderHistory(records);
+  } catch (error) {
+    if (request === historyRequest) listNotice(error.message, token() ? '重试' : '连接工作台', token() ? () => refreshHistory() : openAccess);
+  }
+}
+
+let activeRow = null;
+let generation = 0;
+let traceRequest = 0;
+let processView;
+let fullGraph;
+let buildGraph;
+
+function configureTrace() {
+  const fold = $('#' + view + '-trace');
+  fold.ontoggle = () => {
+    if (!fold.open || !activeRow) return;
+    if (!processView) {
+      const panel = document.createElement('section');
+      panel.className = 'progress-panel';
+      fold.append(panel);
+      processView = new ProcessGraph(panel, stageLabel, (taskId, source, id) =>
+        api('/api/tasks/' + encodeURIComponent(taskId) + (source === 'local' ? '/events/' : '/trace/') + encodeURIComponent(id)));
+      panel.querySelector('.trace-refresh').onclick = loadTrace;
+    }
+    processView.update(activeRow);
+    processView.draw(true);
+    loadTrace();
+  };
+}
+
+async function loadTrace() {
+  if (!activeRow || !processView || !$('#' + view + '-trace').open) return;
+  const taskId = activeRow.id;
+  const request = ++traceRequest;
+  try {
+    const trace = await api('/api/tasks/' + encodeURIComponent(taskId) + '/trace');
+    if (activeRow?.id === taskId && request === traceRequest) processView.updateTrace(trace);
+  } catch {
+    if (activeRow?.id === taskId && request === traceRequest) processView.panel.querySelector('.trace-state').textContent = '调用详情暂时无法加载，可稍后刷新。';
+  }
+}
+
+function fillForm(payload) {
+  const form = $('#' + view + '-form');
+  for (const field of ['query','max_seed_papers','seed_paper_id','constraints']) {
+    if (field in payload && form.elements[field]) form.elements[field].value = payload[field];
+  }
+}
+
+function renderTask(row) {
+  const newTask = activeRow?.id !== row.id;
+  activeRow = row;
+  const pending = row.status === 'queued' || row.status === 'running';
+  const status = $('#' + view + '-status');
+  status.dataset.status = row.status;
+  status.textContent = STATUS_LABEL[row.status] || row.status;
+  const completed = row.status === 'completed';
+  const target = $('#' + view + '-result');
+  const fold = $('#' + view + '-trace');
+  fold.hidden = false;
+  if (newTask) fold.open = pending;
+  if (fold.open && processView) processView.update(row);
+  $('#' + view + '-actions').hidden = !completed;
+  if (view === 'build') {
+    $('#build-graph-card').hidden = !completed;
+    if (completed) {
+      buildGraph.buildTaskId = row.id;
+      $('#build-to-idea').href = route('idea', { from_build: row.id });
+      buildGraph.load();
+    }
+  }
+  if (completed) {
+    const result = row.result || {};
+    if (result.report_markdown) target.innerHTML = DOMPurify.sanitize(marked.parse(result.report_markdown, { gfm:true, breaks:true }));
+    else {
+      const pre = document.createElement('pre');
+      pre.textContent = JSON.stringify(result, null, 2);
+      target.replaceChildren(pre);
+    }
+  } else {
+    const info = document.createElement('p');
+    info.className = row.status === 'failed' ? 'error' : 'hint';
+    info.textContent = row.status === 'failed' ? (row.error || '任务未完成，可修改配置后再次提交。')
+      : row.status === 'queued' ? '任务已进入队列。可以离开页面，稍后从最近任务继续查看。'
+      : '任务正在运行，完成后将在这里展示报告。';
+    target.replaceChildren(info);
+  }
+}
+
+function message(text) { $('#' + view + '-message').textContent = text; }
+
+async function follow(taskId, version) {
+  let polls = 0;
+  let delay = 3500;
+  while (version === generation) {
+    await new Promise(resolve => setTimeout(resolve, delay));
+    if (version !== generation) return;
+    try {
+      const row = await api('/api/tasks/' + encodeURIComponent(taskId));
+      if (version !== generation) return;
+      message('');
+      renderTask(row);
+      if (row.status === 'completed' || row.status === 'failed') {
+        loadTrace();
+        // Langfuse 入库晚于本地任务结束，展开的调用视图在完成后补拉一次。
+        setTimeout(() => { if (version === generation) loadTrace(); }, 20000);
+        return;
+      }
+      if (++polls % 5 === 0) loadTrace();
+      delay = 3500;
     } catch (error) {
-      showError(view + '-message', error);
-      stop = true;
+      if (version !== generation) return;
+      if (error.status === 401 || error.status === 404) { message(error.message); return; }
+      message(error.message + ' 正在等待重新连接。');
+      delay = 10000;
     }
   }
 }
 
-async function submitTask(view, payload) {
-  const button = $('#' + view + '-submit');
-  const message = $('#' + view + '-message');
-  button.disabled = true;
-  message.textContent = '';
+async function openTask(taskId) {
+  const version = ++generation;
   try {
-    const row = await api('/api/tasks', { method: 'POST', body: JSON.stringify(payload) });
-    activeTask[view] = row.id;
-    renderTask(view, { status: 'queued', payload, result: null });
-    await history();
-    follow(view, row.id);
-  } catch (error) {
-    showError(view + '-message', error);
-  } finally {
-    button.disabled = false;
-  }
+    const row = await api('/api/tasks/' + encodeURIComponent(taskId));
+    if (version !== generation) return;
+    if (row.payload.kind !== view) { location.replace(route(row.payload.kind, { task: taskId })); return; }
+    fillForm(row.payload);
+    message('');
+    renderTask(row);
+    if (row.status === 'queued' || row.status === 'running') follow(row.id, version);
+  } catch (error) { if (version === generation) message(error.message); }
 }
 
-async function downloadReport(view) {
-  const taskId = activeTask[view];
-  if (!taskId) return;
-  const response = await fetch(BASE + '/api/tasks/' + taskId + '/report.md', {
-    headers: { Authorization: 'Bearer ' + token() },
-  });
-  if (!response.ok) throw new Error('报告下载失败');
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'ideagraph-' + taskId.slice(0, 8) + '.md';
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+function setupForm() {
+  const form = $('#' + view + '-form');
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if (!token()) { openAccess(() => form.requestSubmit()); return; }
+    const payload = Object.fromEntries(new FormData(form));
+    payload.kind = view;
+    payload.query = payload.query.trim();
+    if (payload.query.length < 3) { message('请输入至少三个非空白字符作为研究主题。'); form.elements.query.focus(); return; }
+    if (view === 'build') payload.max_seed_papers = Number(payload.max_seed_papers);
+    const button = $('#' + view + '-submit');
+    button.disabled = true;
+    message('');
+    try {
+      const row = await api('/api/tasks', { method:'POST', body:JSON.stringify(payload) });
+      const version = ++generation;
+      window.history.replaceState(null, '', route(view, { task: row.id }));
+      renderTask({ id:row.id, status:'queued', payload, events:[] });
+      follow(row.id, version);
+    } catch (error) { message(error.message); if (error.status === 401) openAccess(); }
+    finally { button.disabled = false; }
+  };
+  $('#' + view + '-download').onclick = async () => {
+    if (!activeRow) return;
+    try {
+      const taskId = activeRow.id;
+      const blob = await api('/api/tasks/' + encodeURIComponent(taskId) + '/report.md');
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      link.download = 'ideagraph-' + taskId.slice(0, 8) + '.md';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { message(error.message); }
+  };
+  configureTrace();
 }
 
-function shortLabel(label, kind) {
-  const text = String(label || '');
-  return kind === 'paper' && text.length > 30 ? text.slice(0, 30) + '…' : text;
-}
-
-function renderLegend(legendId, types) {
-  const box = document.getElementById(legendId);
-  if (!box) return;
-  box.replaceChildren();
-  for (const type of types) {
-    const meta = GRAPH_TYPES[type] || GRAPH_TYPES.Entity;
-    const item = document.createElement('span');
-    item.className = 'legend-item';
-    const dot = document.createElement('i');
-    dot.style.background = meta.color;
-    item.append(dot, document.createTextNode(meta.label));
-    box.append(item);
-  }
-}
-
-async function renderGraph(canvasId, statsId, searchId, legendId) {
-  const container = document.getElementById(canvasId);
-  if (!container) return;
-  container.innerHTML = '<div class="graph-loading">正在加载图谱…</div>';
-  let data;
-  try {
-    data = await api('/api/graph');
-  } catch (error) {
-    container.innerHTML = '<div class="graph-loading">图谱加载失败：' + error.message + '</div>';
+async function loadPage(rows) {
+  if (view === 'landing') { refreshHistory(rows); return; }
+  if (view === 'graph') { fullGraph.load(); return; }
+  const taskId = new URLSearchParams(location.search).get('task');
+  if (taskId) {
+    if (token()) openTask(taskId);
+    else { message('连接工作台以查看此任务。'); openAccess(); }
     return;
   }
-  container.innerHTML = '';
-  if (!data.nodes.length) {
-    container.innerHTML = '<div class="graph-loading">图谱还是空的，先建立文献库。</div>';
-    return;
-  }
-
-  const nodes = new vis.DataSet(data.nodes.map(node => {
-    const meta = GRAPH_TYPES[node.type] || GRAPH_TYPES.Entity;
-    return {
-      id: node.id,
-      label: shortLabel(node.label, node.kind),
-      title: node.label,
-      group: node.type,
-      shape: node.kind === 'paper' ? 'box' : 'dot',
-      size: node.kind === 'paper' ? 14 : 9,
-      color: { background: meta.color, border: meta.color },
-      font: { color: node.kind === 'paper' ? '#22483a' : '#42584d', size: node.kind === 'paper' ? 12 : 11 },
-    };
-  }));
-  const edges = new vis.DataSet(data.edges.map(edge => ({
-    from: edge.from,
-    to: edge.to,
-    label: edge.label,
-    arrows: 'to',
-    width: edge.label === 'CITES' ? 1.4 : 1,
-    color: { color: edge.label === 'CITES' ? '#b9c8bf' : '#d7e2da' },
-    font: { size: 9, color: '#8a9b91', strokeWidth: 2, strokeColor: '#ffffff' },
-  })));
-
-  const network = new vis.Network(container, { nodes, edges }, {
-    nodes: { borderWidth: 1 },
-    edges: { smooth: { type: 'continuous' } },
-    physics: {
-      stabilization: { iterations: 250 },
-      barnesHut: { gravitationalConstant: -9000, springLength: 150, avoidOverlap: 0.2 },
-    },
-    interaction: { hover: true, tooltipDelay: 200, navigationButtons: false },
-  });
-  graphs[canvasId] = { network, nodes };
-
-  const stats = document.getElementById(statsId);
-  if (stats) stats.textContent = data.nodes.length + ' 节点 · ' + data.edges.length + ' 关系';
-
-  const types = [...new Set(data.nodes.map(node => node.type))];
-  renderLegend(legendId, types);
-
-  const search = document.getElementById(searchId);
-  if (search && !search.dataset.bound) {
-    search.dataset.bound = '1';
-    search.oninput = () => {
-      const term = search.value.trim().toLowerCase();
-      const graph = graphs[canvasId];
-      if (!graph || !term) return;
-      const hit = data.nodes.find(node => String(node.label).toLowerCase().includes(term));
-      if (hit) {
-        graph.network.selectNodes([hit.id]);
-        graph.network.focus(hit.id, { scale: 1.2, animation: true });
-      }
-    };
+  if (view === 'idea') {
+    const form = $('#idea-form');
+    if (params.has('seed_paper_id')) form.elements.seed_paper_id.value = params.get('seed_paper_id');
+    const buildId = params.get('from_build');
+    if (buildId && token() && !form.elements.query.value) {
+      const version = generation;
+      try {
+        const row = await api('/api/tasks/' + encodeURIComponent(buildId));
+        if (version === generation && row.payload.kind === 'build' && !form.elements.query.value) form.elements.query.value = row.payload.query;
+      } catch (error) { if (version === generation) message(error.message); }
+    }
   }
 }
 
-function setupForms() {
-  $('#build-form').onsubmit = event => {
-    event.preventDefault();
-    const form = new FormData(event.target);
-    submitTask('build', {
-      kind: 'build',
-      query: form.get('query'),
-      max_seed_papers: Number(form.get('max_seed_papers')),
-    });
-  };
-  $('#idea-form').onsubmit = event => {
-    event.preventDefault();
-    const form = new FormData(event.target);
-    submitTask('idea', {
-      kind: 'idea',
-      query: form.get('query'),
-      seed_paper_id: form.get('seed_paper_id') || '',
-      constraints: form.get('constraints') || '',
-    });
-  };
-  $('#build-download').onclick = () => downloadReport('build').catch(error => showError('build-message', error));
-  $('#idea-download').onclick = () => downloadReport('idea').catch(error => showError('idea-message', error));
-  $('#build-graph').onclick = () => renderGraph('graph-canvas-build', 'graph-stats-build', 'graph-search-build', 'graph-legend-build');
-}
-
-$('#access').onclick = () => $('#login').showModal();
-$('#login form').onsubmit = () => {
-  sessionStorage.setItem('access', $('#token').value);
-  $('#token').value = '';
-  setTimeout(() => {
-    history().catch(error => showError(currentView() + '-message', error));
-    if (currentView() === 'graph') renderGraph('graph-canvas', 'graph-stats-full', 'graph-search', 'graph-legend');
-  }, 0);
-};
-
-setupForms();
-showView(currentView());
-if (currentView() === 'graph' && token()) {
-  renderGraph('graph-canvas', 'graph-stats-full', 'graph-search', 'graph-legend');
-}
-if (token()) {
-  history().catch(() => {});
-} else {
-  $('#login').showModal();
-}
+setupShell();
+if (view === 'graph') fullGraph = new GraphBrowser($('[data-graph="full"]'));
+if (view === 'build') buildGraph = new GraphBrowser($('[data-graph="build"]'));
+if (view === 'build' || view === 'idea') setupForm();
+document.querySelectorAll('[data-icon]').forEach(slot => slot.append(makeIcon(slot.dataset.icon)));
+$('#history-refresh').onclick = () => refreshHistory();
+loadPage();

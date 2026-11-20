@@ -2,11 +2,13 @@ import asyncio
 import hashlib
 import heapq
 import logging
+import re
 import time
 from pathlib import Path
 
 from src.knowledge.normalizer import merge_entities, normalize_relations
 from src.schemas.document import PaperDocument
+from src.observability.progress import emit_progress
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,7 @@ class MvpGraphBuildWorkflow:
         self._paper_service = paper_service
         self._extractor = extractor
         self._repository = repository
-        self._log = log or logger.info
+        self._log_output = log or logger.info
         self._worker_count = worker_count
         self._extract_entities_enabled = extract_entities_enabled
         self._citation_graph_strategy = citation_graph_strategy
@@ -49,6 +51,17 @@ class MvpGraphBuildWorkflow:
         self._local_paper_output_dir = Path(local_paper_output_dir) if local_paper_output_dir else None
         self._resolver = resolver
         self._relation_resolver = relation_resolver
+
+    def _log(self, message):
+        self._log_output(message)
+        # 仅镜像固定业务事件名，异常详情及凭据不进入浏览器。
+        name = message.split(" ", 1)[0]
+        if name in {"search:start", "search:done", "paper:node_written", "paper:start",
+                    "paper:extract_done", "paper:write_done", "paper:extract_error",
+                    "paper:extract_skipped", "extract:skipped", "citation:pending_unresolved"}:
+            # 仅提取论文标识和计数，绝不将异常原文当作节点输出。
+            fields = dict(re.findall(r"(?:^| )(id|papers|citations|entities|relations|extract_progress_done|extract_remaining)=([^ ]+)", message))
+            emit_progress(name, "failed" if name == "paper:extract_error" else "completed", output=fields or None)
 
     def run(self, keyword: str, max_seed_papers: int, require_references: bool) -> dict:
         return asyncio.run(self.run_async(keyword, max_seed_papers, require_references))

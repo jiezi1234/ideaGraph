@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel
+from src.observability.progress import progress_stage
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +198,15 @@ class OpenAIChatModel:
             kwargs["name"] = name
             kwargs["metadata"] = metadata or {}
 
-        response = self._client.chat.completions.create(**kwargs)
+        # 即使未配置远端 tracing，也能显示模型调用的真实开始与结束。
+        with progress_stage(name, input={"messages": messages, "tools": tools, "response_format": response_format}) as progress:
+            response = self._client.chat.completions.create(**kwargs)
+            message = response.choices[0].message
+            progress["output"] = {
+                "content": getattr(message, "content", None),
+                "tool_calls": _parse_tool_calls(getattr(message, "tool_calls", None)),
+                "usage": _parse_usage(getattr(response, "usage", None)),
+            }
         choice = response.choices[0]
         message = choice.message
         return OpenAIChatResult(
