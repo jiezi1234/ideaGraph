@@ -257,6 +257,7 @@ function fillForm(payload) {
 function renderTask(row) {
   const newTask = activeRow?.id !== row.id;
   activeRow = row;
+  if (row.id) sessionStorage.setItem('last_' + view, row.id);
   const pending = row.status === 'queued' || row.status === 'running';
   const status = $('#' + view + '-status');
   status.dataset.status = row.status;
@@ -375,6 +376,21 @@ function setupForm() {
   configureTrace();
 }
 
+async function resumeTask() {
+  if (!token()) return false;
+  try {
+    const rows = await api('/api/tasks');
+    const running = rows.find(row => row.payload.kind === view && (row.status === 'queued' || row.status === 'running'));
+    const fallbackId = running ? running.id : sessionStorage.getItem('last_' + view);
+    if (!fallbackId) return false;
+    const row = running || rows.find(item => item.id === fallbackId);
+    if (!row || row.payload.kind !== view) return false;
+    window.history.replaceState(null, '', route(view, { task: row.id }));
+    await openTask(row.id);
+    return true;
+  } catch { return false; }
+}
+
 async function loadPage(rows) {
   if (view === 'landing') { refreshHistory(rows); return; }
   if (view === 'graph') { fullGraph.load(); return; }
@@ -384,6 +400,7 @@ async function loadPage(rows) {
     else { message('连接工作台以查看此任务。'); openAccess(); }
     return;
   }
+  if (await resumeTask()) return;
   if (view === 'idea') {
     const form = $('#idea-form');
     if (params.has('seed_paper_id')) form.elements.seed_paper_id.value = params.get('seed_paper_id');
