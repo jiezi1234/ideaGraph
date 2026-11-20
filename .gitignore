@@ -32,3 +32,6 @@ tool_planning_prompt.txt
 # Claude
 .claude/
 settings.local.json
+
+# 服务器工作台访问信息（含口令，不提交）
+access.txt
